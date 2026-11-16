@@ -1,0 +1,215 @@
+Software Requirements Specification (SRS)
+Central Tenant Records (CTRx)
+Version: 1.2
+Date: 17 November 2026
+Status: Proposed
+Version
+Summary of changes
+1.0
+Initial draft.
+1.1
+Renamed to CTRx. Aligned with database schema v0.3 and the chosen technology stack. Added local and central official levels, a two-stage approval workflow, persons and household members without user accounts, versioned PDF certificates with a replaceable design, a minimal public verification endpoint, notifications, and an Open Items section. Existing requirement IDs are unchanged. New requirements are numbered FR-60 onward, NFR-23 onward and BR-13 onward.
+1.2
+Added secure email password recovery with expiring, one-use reset links and session invalidation (FR-77).
+1. Introduction
+1.1 Purpose
+The Central Tenant Records (CTRx) system is a centralized digital platform designed to maintain verified tenant identity records, facilitate rental-related activities, and improve transparency and accountability between tenants and landlords in Bangladesh.
+The system introduces a household-based Rental Identity Certificate (RIC) and provides a structured platform for property listings, tenancy records, rental payment histories, and tenant reliability information.
+1.2 Scope
+The system will provide the following major services:
+1.  Household-based Rental Identity Certificate (RIC) registration and verification.
+2.  Two-stage government approval (local verification, central final approval) and digital certificate issuance.
+3.  Tenant and landlord account management.
+4.  Property registration and rental listings.
+5.  Tenancy registration and management.
+6.  Rental payment records and transaction history.
+7.  Tenant reliability scoring based on verified rental history.
+8.  Controlled sharing of tenant information.
+9.  Property viewing requests.
+10.  Dispute submission and management.
+11.  Administrative monitoring and audit logging.
+12.  Certificate PDF generation, versioning and public online verification.
+13.  In-app notifications for key status changes.
+1.3 Intended Users
+• Tenants: Individuals applying for RICs, searching for rental properties, and managing tenancy records.
+• Landlords: Property owners registering properties, publishing listings, and managing tenants.
+• Local Government Officials: Officials assigned to one upazila/thana who verify RIC applications from that area and forward them.
+• Central Government Officials: Authorized officials responsible for final RIC verification, approval, rejection and revocation.
+• System Administrators: Personnel responsible for platform administration and maintenance.
+1.4 Definitions
+Term
+Meaning
+RIC
+Rental Identity Certificate. One RIC represents one household.
+Household
+A group of registered members sharing one RIC, with one primary holder.
+Primary holder
+The member who holds the household's RIC and is accountable for it.
+Person
+A real individual recorded in the system. A person may or may not have a user account.
+Local official
+Government user limited to one upazila/thana.
+Central official
+Government user with nationwide authority for final decisions.
+Verification token
+A random, non-guessable code placed in the certificate QR code for public verification.
+2. Overall Description
+2.1 Product Perspective
+CTRx will operate as a centralized web-based application with the following layers:
+Layer
+Technology
+Responsibility
+Frontend
+React (TypeScript)
+Citizen, tenant, landlord, government and admin dashboards
+Backend
+Python, FastAPI, served by Uvicorn
+Business rules, authentication, authorization, validation, calculations, workflows, notifications, audit logging
+Data access
+SQLAlchemy with Psycopg 3
+Communication between the backend and the database
+Migrations
+Alembic
+Controlled schema changes
+Database
+PostgreSQL 17 (database ctrx_db)
+Primary source of truth for all records
+The application connects to the database using the dedicated application role ctrx_app. The PostgreSQL superuser is never used by the application.
+The database enforces integrity through constraints, triggers and functions. These are a safety net. Authorization and business rules are implemented in the backend and are not delegated to the database alone.
+The backend generates a downloadable PDF representation of each approved RIC. A QR code on each certificate allows its authenticity and current status to be checked online.
+2.2 User Roles
+Role
+Main Responsibilities
+Tenant
+Apply for RIC, manage profile and household, search properties, manage tenancy records
+Landlord
+Register properties, publish listings, manage tenancies and payment records
+Local Government Official
+Verify applications from their own upazila/thana and forward or reject them
+Central Government Official
+Perform final verification, approve or reject applications, revoke certificates, regenerate certificate PDFs
+Administrator
+Manage system configuration, users, monitoring, and audit records
+2.3 Operating Environment
+• Frontend: modern desktop and mobile web browsers.
+• Backend: Python 3.12 or later, FastAPI, SQLAlchemy 2.x, Uvicorn.
+• Database: PostgreSQL 17, managed with pgAdmin 4 or equivalent.
+• Migrations: Alembic.
+• Document generation: server-side PDF rendering with a replaceable template.
+• Certificate verification: QR code linking to a public online verification endpoint.
+• Deployment: HTTPS-terminating web server or reverse proxy, secure database and document storage.
+3. Functional Requirements
+Requirement IDs from version 1.0 are unchanged. Requirements added in versions 1.1 and 1.2 are numbered FR-60 onward and appear in the relevant section.
+3.1 User Registration and Authentication
+FR-01: The system shall allow users to register using their required account information.
+FR-02: The system shall support different user roles: tenant, landlord, government official, and administrator.
+FR-03: The system shall authenticate users before allowing access to protected features.
+FR-04: The system shall restrict privileged operations according to user roles and permissions.
+FR-77: A user shall be able to request a password-reset link by email and set a new password using a single-use, expiring link. The system shall not reveal whether an email address is registered, and a successful reset shall invalidate existing sessions.
+3.2 Rental Identity Certificate (RIC)
+FR-05: The system shall allow an applicant to submit an RIC application with personal identity information, household information, address, and supporting documents. An application may be submitted before the applicant has a user account.
+FR-06: The system shall allow authorized local government officials assigned to the application's upazila/thana to review and verify submitted applications.
+FR-07: Verified applications shall be forwarded to the central government authority for final verification.
+FR-08: Only an authorized central government official shall be able to grant final approval or rejection.
+FR-09: The system shall generate an RIC only after final approval.
+FR-10: The system shall generate a unique, sequential 12-digit RIC number using the designated geographical code structure DDDDUUUSSSSS (written without spaces):
+• First 2 digits: division code.
+• Next 2 digits: district code.
+• Next 3 digits: upazila/thana code.
+• Final 5 digits: sequential household number within that upazila/thana, from 00001 to 99999.
+FR-11: The system shall generate a downloadable PDF certificate containing the RIC number, household information, issuing authority, issue date, approval information, and QR code.
+FR-12: The system shall provide a public online facility to verify an RIC's authenticity and current status (see FR-67).
+FR-13: The system shall support certificate status management, including active, expired, and revoked. A certificate whose expiry date has passed shall be reported as expired.
+FR-60: Government accounts shall have an official level: local or central. A local official is assigned to exactly one upazila/thana. A central official has nationwide authority.
+FR-61: A local official shall be able to view and act only on applications belonging to their assigned upazila/thana.
+FR-62: An application shall have one of these statuses: pending local review, pending central review, approved, rejected by local official, rejected by central official. Status changes shall follow only the transitions in section 7.1. A rejection shall require a written reason. A central official may return an application from pending central review to pending local review for additional verification; the return shall include written instructions for the local office.
+FR-63: A rejected application is final. The applicant may submit a new application that references the earlier one.
+FR-64: The backend shall generate the certificate PDF after the RIC has been issued. If PDF generation fails, the RIC shall remain valid, the certificate shall be shown as PDF pending, and generation shall be retried automatically.
+FR-65: Certificate PDFs shall be versioned. Regenerating a PDF shall add a new version without changing the RIC. Each version shall record the template used, a snapshot of the data printed, a file checksum, and who or what generated it. Only central officials and administrators may request regeneration.
+FR-66: The visual design and layout of the certificate shall be replaceable without changing the database structure or business rules.
+FR-67: The public verification facility shall be reached through a non-guessable token in the QR code. It shall reveal only the RIC number, current status, issue date and expiry date. It shall not reveal names, addresses or any household details.
+FR-68: Revoking a certificate shall require an authorized official and a written reason, and shall record who revoked it and when.
+FR-70: Supporting documents attached to an application shall be stored with their type, file type and checksum.
+3.3 Household Management
+FR-14: An RIC shall represent a household rather than an individual person.
+FR-15: Each household shall have one designated primary holder and may contain multiple registered members.
+FR-16: The system shall maintain the relationship between a person and their registered household. A tenant account shall be linked to a person record.
+FR-17: A household member shall be able to leave an existing household and establish a new household. Membership in the previous household ends when the new RIC is finally approved, not when the application is submitted.
+FR-18: When a member establishes a new household, the system shall preserve the previous household and its RIC records.
+FR-19: The new household shall receive a separate RIC after completing the normal approval process.
+FR-69: Household members shall not be required to hold a user account. An application may list additional household members, who are recorded as persons when the application is approved.
+3.4 Optional Previous RIC Reference
+FR-20: An applicant shall be able to optionally provide a previous RIC number when applying for a new RIC.
+FR-21: If a valid previous RIC is provided, the system shall retrieve the associated verified household information and use it to pre-fill the new application.
+FR-22: The applicant shall be able to review and update the pre-filled information before submission.
+FR-23: The system shall use the previous RIC as a reference for verification, not as an automatic transfer of household membership.
+FR-24: The absence of a previous RIC shall not prevent an applicant from submitting a new application.
+FR-25: The system shall verify that the applicant is an active registered member of the referenced household before using its information for pre-filling. The check shall compare the applicant's keyed identity hash with the identity hashes of the household's active members. A revoked RIC shall not be accepted.
+3.5 Tenant Profile Management
+FR-26: The system shall maintain tenant profiles linked to their user accounts.
+FR-27: The system shall maintain household membership information and membership status.
+FR-28: The system shall maintain relevant tenant rental history.
+3.6 Landlord and Property Management
+FR-29: The system shall allow landlords to register their properties.
+FR-30: Property records shall include location, address, property type, monthly rent, floor area, bedrooms, bathrooms, floor number, and availability date.
+FR-31: The system shall allow landlords to describe property amenities.
+FR-32: Landlords shall be able to create, update, and manage rental listings.
+FR-33: The system shall allow tenants to search and filter available properties based on relevant criteria, including location and rental price.
+FR-73: A listing shall have one of these statuses: draft, available, rented, withdrawn. A property shall have at most one live (draft or available) listing at a time.
+3.7 Tenancy Management
+FR-34: The system shall allow tenancy records to be created between a tenant and a landlord for a registered property.
+FR-35: Each tenancy record shall maintain the relevant tenant, landlord, property, rental amount, and tenancy status.
+FR-36: The system shall support active, ended, and terminated tenancy statuses.
+FR-37: The system shall preserve historical tenancy records.
+FR-71: The system shall not allow two active tenancies on the same property to overlap in time.
+3.8 Rental Payment Records
+FR-38: The system shall allow landlords to create rental payment requests associated with a tenancy.
+FR-39: The system shall allow the counterparty (the tenant, for a landlord-created request) to accept or reject a payment request. The person who created a request shall not decide it.
+FR-40: Accepted payment requests shall be represented in the rental ledger.
+FR-41: The system shall maintain payment history for each tenancy.
+FR-42: The system shall support correction entries while preserving the original ledger history. A correction shall be a new signed, non-zero entry that references the entry it corrects and states a reason.
+3.9 Tenant Reliability Scoring
+FR-43: The system shall maintain a reliability score for eligible tenant profiles.
+FR-44: The reliability score shall be based on recorded rental payment behavior and other supported, verified rental-history events.
+FR-45: The system shall maintain events explaining changes to a tenant's reliability score.
+FR-46: The system shall support events such as on-time payment, late payment, missed payment, and correction.
+FR-47: The system shall update reliability information when relevant verified events are recorded or corrected. Score records and score events shall be append-only, and a single ledger entry shall explain at most one score event.
+3.10 Controlled Information Sharing
+FR-48: The system shall allow tenants to grant landlords access to selected rental-history information.
+FR-49: Access grants shall define the information categories that can be shared, an expiry date, and shall be revocable.
+FR-50: The system shall prevent landlords from accessing restricted tenant information without appropriate authorization.
+3.11 Property Viewing Requests
+FR-51: Tenants shall be able to submit viewing requests for available property listings.
+FR-52: Landlords shall be able to confirm, decline, or propose alternative viewing arrangements.
+FR-53: The system shall maintain the status of viewing requests.
+FR-72: A tenant shall have at most one open viewing request per listing. Requests that receive no response before their expiry time shall be marked expired automatically.
+3.12 Dispute Management
+FR-54: Users shall be able to submit disputes related to supported platform activities.
+FR-55: Authorized personnel shall be able to review and update dispute statuses.
+FR-56: The system shall preserve dispute records and their associated status.
+FR-74: A dispute may relate to a ledger entry, payment request, tenancy, reliability score, RIC application, household, or certificate.
+3.13 Audit and Administration
+FR-57: The system shall maintain audit logs for important user and administrative activities.
+FR-58: The system shall record the responsible user and relevant action information for auditable operations.
+FR-59: Authorized administrators shall be able to manage system settings, including the certificate validity period and the public verification base URL.
+3.14 Notifications
+FR-75: The system shall notify users in-app of key status changes: application progress and decisions, payment request decisions, viewing request responses, access grant changes, and dispute updates.
+FR-76: Notification delivery by email or SMS is optional for the initial version and shall be designed so that channels can be added later.
+
+
+
+
+
+backend:
+cd "/k/Personal Projects/CTRx/backend"
+source .venv/Scripts/activate
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8003 --reload
+
+
+frontend:
+cd "/k/Personal Projects/CTRx/frontend" && npm.cmd run dev
+
+
+
+
+Government Profile creation can be done from Admin profile. So if database permits create a admin profile and add only the feature of adding a Government profile. Lets fully implement the government profiles to validate and issue certificate of RIC. Make a way for tenant profile application (if possible) to be trackable by tenants themselves (if possible again). Partially make the tenant dashboard. and fully make the govt profile dashboard. Admin only create govt. profile ids and some other minor features. Advance the Design color and ui to modern professional and elegant.

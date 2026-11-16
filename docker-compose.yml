@@ -1,0 +1,38 @@
+# Docker Compose for CTRx
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./ctrx
+      dockerfile: Dockerfile
+    environment:
+      - APP_ENV=development
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - HMAC_SECRET=${HMAC_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CORS_ORIGINS=["http://localhost:5173"]
+      - STORAGE_DIR=/app/storage
+      - VERIFY_BASE_URL=${VERIFY_BASE_URL}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ctrx:/app
+      - ./ctrx/storage:/app/storage
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+
+# No DB service – use an external PostgreSQL instance as per the .env files.
