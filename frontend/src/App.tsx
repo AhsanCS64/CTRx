@@ -36,7 +36,7 @@ type LandlordRentRow = { tenancy_id: string; tenant_id: string; tenant_name?: st
 type RentPaymentReport = { payment_method: string; note?: string };
 type PropertyUnit = { id: string; property_id: string; unit_number: string; floor_number: number; monthly_rent: number; floor_area_sqft: number; bedrooms: number; bathrooms: number; available_from: string; status: string; created_at: string; updated_at: string };
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8003' : window.location.origin)).replace(/\/api\/?$/, '');
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || window.location.origin).replace(/\/api\/?$/, '');
 const token = () => localStorage.getItem('access_token') || '';
 
 async function request<T>(path: string, options: RequestInit = {}, canRefresh = true): Promise<T> {
@@ -465,6 +465,12 @@ function App() {
 }
 
 function Landing({ onLogin, onRegister }: { onLogin: (role: Role) => void; onRegister: () => void }) {
+  const [activeSection, setActiveSection] = useState(() => window.location.hash);
+  useEffect(() => {
+    const updateSection = () => setActiveSection(window.location.hash);
+    window.addEventListener('hashchange', updateSection);
+    return () => window.removeEventListener('hashchange', updateSection);
+  }, []);
   const [statistics, setStatistics] = useState<{ registered_users: number; properties: number; active_tenancies: number }>();
   useEffect(() => {
     const controller = new AbortController();
@@ -472,31 +478,48 @@ function Landing({ onLogin, onRegister }: { onLogin: (role: Role) => void; onReg
       .then(setStatistics).catch(() => {});
     return () => controller.abort();
   }, []);
-  return <div className="public-site" id="top"><div className="landing-atmosphere" aria-hidden="true"><span /><span /></div>
-    <a className="skip-link" href="#main-content">Skip to content</a><header className="public-header"><Brand /><nav className="public-nav" aria-label="Main navigation"><a href="#platform-features">The platform</a><a href="#engineer">The engineer</a></nav><div className="button-row">
-      <details className="signin-menu"><summary>Sign in <span aria-hidden="true">⌄</span></summary><div>{(['tenant', 'landlord', 'government', 'admin'] as Role[]).map(role => <button key={role} onClick={() => onLogin(role)}><Icon name={role === 'tenant' ? 'user' : role === 'landlord' ? 'building' : 'shield'} />{role === 'government' ? 'Government official' : role === 'admin' ? 'Administrator' : formatLabel(role)}</button>)}</div></details>
+  return <div className="ctrx-landing" id="top">
+    <a className="skip-link" href="#main-content">Skip to content</a>
+    <header className="cl-header"><Brand /><nav aria-label="Main navigation">{[['#platform-features', 'Platform'], ['#rental-identity', 'Rental identity'], ['#engineer', 'About']].map(([href, label]) => (
+        <a key={href} href={href} aria-current={activeSection === href ? 'location' : undefined}>{label}</a>
+      ))}</nav><div className="cl-actions">
+      <details className="signin-menu"><summary>Sign in</summary><div>{(['tenant', 'landlord', 'government', 'admin'] as Role[]).map(role => <button key={role} onClick={() => onLogin(role)}><Icon name={role === 'tenant' ? 'user' : role === 'landlord' ? 'building' : role === 'admin' ? 'key' : 'shield'} />{role === 'government' ? 'Government official' : role === 'admin' ? 'Administrator' : formatLabel(role)}</button>)}</div></details>
       <button className="primary" onClick={onRegister}>Create account</button>
+
     </div></header>
-    <main className="public-content" id="main-content">
-      <section className="public-hero">
-        <div className="hero-copy"><span className="hero-kicker"><span /> A clearer way to rent</span><h1>Your next home.<br /><em>A trusted record.</em></h1>
-          <p>Apply for a household Rental Identity Certificate, find a home, and keep a record of rent payments in one place.</p>
-          <div className="hero-actions"><button className="primary" onClick={onRegister}>Start your rental journey <span aria-hidden="true">→</span></button><a href="#platform-features">Explore the platform <span aria-hidden="true">↗</span></a></div><div className="hero-note"><Icon name="shield" /> Identity, tenancy, and rental history. Connected.</div>
+    <main id="main-content">
+      <section className="cl-hero">
+        <div className="cl-intro"><span className="cl-label">Central Tenant Records</span>
+          <h1>Renting as a bachelor? <em>Let your record speak.</em></h1>
+          <p>CTRx helps bachelors in Bangladesh show landlords who they are and how they rent, with a verified identity and a rental history they choose to share.</p>
+          <div className="cl-actions"><button className="primary" onClick={onRegister}>Create account</button><a href="#platform-features">Explore the platform <span aria-hidden="true">↓</span></a></div>
         </div>
-        <div className="public-hero-card">
-          <div className="identity-card-heading"><span className="identity-emblem"><Icon name="award" /></span><span>THE FOUNDATION OF YOUR JOURNEY<small>Rental Identity Certificate</small></span></div>
-          <h2>One identity.<br />A connected rental history.</h2>
-          <p>Start with your household details. Follow each review, then keep your verified certificate close.</p>
-          <ol className="identity-steps">{[['01', 'Apply', 'Your address and household'], ['02', 'Review', 'Local verification and central approval'], ['03', 'Receive', 'Download your issued certificate']].map(([number, title, detail]) => <li key={number}><span>{number}</span><div><strong>{title}</strong><small>{detail}</small></div><Icon name={number === '03' ? 'award' : 'check'} /></li>)}</ol>
-          <div className="identity-card-footer"><Icon name="files" /> Your records, together in one workspace</div>
+        </section>
+      <section className="cl-mission" aria-labelledby="cl-mission-title">
+        <h2 id="cl-mission-title">A fairer chance at finding a home</h2>
+        <div><h3>For tenants</h3><p>Build a rental profile over time and share selected tenancy and payment records with a prospective landlord.</p></div>
+        <div><h3>For landlords</h3><p>Review the tenant’s reliability score alongside their shared records. Consider the evidence and the applicant’s circumstances together.</p></div>
+      </section>
+      <section className="cl-identity" id="rental-identity"><div className="cl-identity-intro"><span className="cl-label">Rental identity</span><h2>A verified record for your household.</h2><p>Follow your application from submission to approval, then download your issued certificate from your account.</p></div><div className="cl-certificate"><div className="cl-document-brand"><img src={logoImage} alt="" /><span>Central Tenant Records</span></div>
+          <Icon name="award" />
+          <h2>Rental Identity Certificate</h2>
+          <ol>{[['Apply', 'Submit your address and household details.'], ['Get verified', 'Track local verification and central approval.'], ['Download', 'Save your certificate once it is issued.']].map(([title, detail]) => <li key={title}><strong>{title}</strong><span>{detail}</span></li>)}</ol>
         </div>
       </section>
       {statistics && <section className="community-statistics" aria-label="Platform statistics">{[['users', statistics.registered_users, 'Registered active accounts'], ['building', statistics.properties, 'Registered properties'], ['key', statistics.active_tenancies, 'Active tenancies']].map(([icon, value, label]) => <div key={label}><Icon name={String(icon)} /><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</section>}
-      <section className="landing-features" id="platform-features"><div><span className="eyebrow">FROM FINDING A HOME TO MOVING OUT</span><h2>A clearer rental journey.</h2><p>Your documents, your home, and the conversations that matter. Together in one workspace.</p></div>{[['key', 'A home with a history', 'Arrange viewings, make offers, and keep your lease and inspection records together.'], ['card', 'Clarity on every payment', 'Track monthly rent, view statements, and review deposit deductions with evidence.'], ['shield', 'Records both parties can trust', 'Acknowledge inspections, share selected history, and follow a dispute through review.'], ['layers', 'Care beyond move-in', 'Report maintenance, follow repair updates, and keep the details with your tenancy.']].map(([icon, title, description]) => <article key={title}><span className="feature-icon"><Icon name={icon} /></span><h3>{title}</h3><p>{description}</p></article>)}</section>
-      <EngineerProfile photo={engineerPhoto} />
-      <section className="landing-closing"><div><span className="eyebrow">YOUR NEXT CHAPTER</span><h2>Bring your rental records together.</h2><p>Create a tenant or landlord account and start building your rental history.</p></div><button className="primary" onClick={onRegister}>Create your account <span aria-hidden="true">→</span></button></section>
+      <section className="cl-platform" id="platform-features">
+        <div><span className="cl-label">The platform</span><h2>From finding a home to moving out</h2></div>
+        <div className="cl-features">{[
+          ['key', 'Find a home', 'Browse listings, arrange viewings, and make rental offers.'],
+          ['card', 'Track rent and deposits', 'Review monthly rent, payment history, and deposit settlements.'],
+          ['layers', 'Look after your home', 'Record inspections, report maintenance, and follow repairs.'],
+          ['shield', 'Manage your records', 'Share selected rental history and follow disputes through review.'],
+        ].map(([icon, title, description]) => <article key={title}><Icon name={icon} /><h3>{title}</h3><p>{description}</p></article>)}</div>
+      </section>
+      <div className="cl-about"><EngineerProfile photo={engineerPhoto} /></div>
+      <section className="cl-closing"><div><h2>Start your rental record</h2><p>Create a tenant or landlord account.</p></div><button className="primary" onClick={onRegister}>Create account</button></section>
     </main>
-    <footer className="site-footer"><div className="footer-main"><div className="footer-brand"><img className="footer-logo" src={logoImage} alt="CTRx" /><div className="footer-identity"><strong>Central Tenant Records</strong><span>A trusted record for verified rentals and tenancy history.</span></div></div><div><h3>Explore CTRx</h3><a href="#platform-features">What we offer</a><a href="#engineer">Meet the engineer</a><button onClick={onRegister}>Create an account</button></div><div><h3>Inside your workspace</h3><p>Rental identity certificates<br />Tenancy and payment records<br />Inspections and maintenance<br />Deposit settlement and disputes</p></div></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Central Tenant Records</span><a href="#top">Back to top ↑</a></div></footer>
+    <footer className="cl-footer"><span>© {new Date().getFullYear()} Central Tenant Records</span><a href="#top">Back to top ↑</a></footer>
   </div>;
 }
 

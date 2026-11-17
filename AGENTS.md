@@ -250,3 +250,5 @@ The full official review queue supports applicant or area search and a status fi
 Records & privacy shows an independent loading or retry state for privacy history and supports older consent records with missing scope values.
 Workspace overview places tenant application and home records before recommended actions. Sharing panels and workspace forms stack at narrow widths.
 Government overview places the review worklist before the workflow guide. Records & privacy appears in tenant and landlord navigation.
+
+The public landing page uses scoped styles in frontend/src/landing.css for its navigation, rental identity introduction, feature grid, and registration actions.
