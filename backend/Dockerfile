@@ -6,9 +6,9 @@ RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/li
 
 WORKDIR /app
 
-# Install Poetry (or pip) - using pip for simplicity
-COPY pyproject.toml poetry.lock* /app/
-RUN pip install --upgrade pip && pip install poetry && poetry config virtualenvs.create false && poetry install --no-interaction --no-ansi
+# Install backend runtime dependencies
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY . /app
