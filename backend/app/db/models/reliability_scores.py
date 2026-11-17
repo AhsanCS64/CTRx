@@ -6,7 +6,7 @@ Append-only: DB triggers forbid UPDATE and DELETE on this table.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, Numeric, Text, func
+from sqlalchemy import DateTime, ForeignKey, Numeric, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,8 +27,5 @@ class ReliabilityScore(Base):
     score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
     model_version: Mapped[str] = mapped_column(Text, nullable=False, server_default="v1")
     computed_at: Mapped[datetime] = mapped_column(
-        "computed_at",
-        "TIMESTAMP WITH TIME ZONE",
-        nullable=False,
-        server_default=func.now(),
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )

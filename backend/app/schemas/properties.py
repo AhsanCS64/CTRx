@@ -31,6 +31,9 @@ class PropertyResponse(PropertyBase):
     landlord_id: UUID
     created_at: datetime
     updated_at: datetime
+    area_name: Optional[str] = None
+    district: Optional[str] = None
+    division: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class ListingBase(BaseModel):
@@ -51,6 +54,10 @@ class ListingResponse(ListingBase):
     model_config = ConfigDict(from_attributes=True)
 
 class AvailableListingResponse(ListingResponse):
+    area_id: int
+    area_name: str
+    district: str
+    division: str
     property_address: str
     property_type: str
     monthly_rent: float
@@ -62,6 +69,8 @@ class AvailableListingResponse(ListingResponse):
 
 
 class PropertyUnitCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
     unit_number: str = Field(..., min_length=1, max_length=40)
     floor_number: int = Field(0, ge=0)
     monthly_rent: float = Field(..., gt=0)

@@ -804,6 +804,21 @@ button { font-family: inherit; }
 .form-single { display: flex; flex-direction: column; gap: 16px; }
 .form-single .field-group { margin-bottom: 0; }
 
+.area-location-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.area-location-picker label { min-width: 0; margin-bottom: 0; }
+.area-location-picker select:disabled { cursor: not-allowed; opacity: .7; }
+.search-filters .search-area-picker { flex: 1 1 100%; }
+.property-location { display: block; margin: -2px 0 8px; color: var(--ink-500); font-size: .82rem; }
+
+@media (max-width: 760px) {
+  .area-location-picker { grid-template-columns: minmax(0, 1fr); }
+}
+
 .field-group { display: flex; flex-direction: column; gap: 0; margin-bottom: 0; }
 .field-group label { display: flex; flex-direction: column; gap: 6px; }
 

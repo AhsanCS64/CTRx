@@ -105,7 +105,7 @@ def create_dispute(db: Session, user_id: str, role: str, payload: DisputeCreate)
         actor_role=role,
         entity_type="dispute",
         entity_id=str(dispute.id),
-        metadata=payload.model_dump(),
+        metadata=payload.model_dump(mode="json"),
     )
     db.commit()
     return DisputeResponse.model_validate(dispute)

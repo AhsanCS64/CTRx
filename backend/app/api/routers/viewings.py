@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.audit import log_action
+from app.db.models.areas import Area
 from app.db.models.listings import Listing
 from app.db.models.properties import Property
 from app.db.models.property_units import PropertyUnit
@@ -78,9 +79,10 @@ def list_my_viewings(
 ):
     _tenant(user)
     rows = db.execute(
-        select(ViewingRequest, Listing, Property, PropertyUnit, LandlordProfile)
+        select(ViewingRequest, Listing, Property, PropertyUnit, LandlordProfile, Area)
         .join(Listing, ViewingRequest.listing_id == Listing.id)
         .join(Property, Listing.property_id == Property.id)
+        .join(Area, Area.id == Property.area_id)
         .outerjoin(PropertyUnit, Listing.unit_id == PropertyUnit.id)
         .join(LandlordProfile, Property.landlord_id == LandlordProfile.user_id)
         .where(ViewingRequest.tenant_id == user.id)
@@ -96,13 +98,16 @@ def list_my_viewings(
             "updated_at": viewing.updated_at,
             "status": _visible_status(viewing),
             "property_address": property_record.address_line,
+            "area_name": area.name,
+            "district": area.district,
+            "division": area.division,
             "property_type": property_record.property_type,
             "unit_number": unit.unit_number if unit else None,
             "monthly_rent": float(unit.monthly_rent if unit else property_record.monthly_rent),
             "listing_title": listing.title,
             "landlord_name": landlord.full_name,
         }
-        for viewing, listing, property_record, unit, landlord in rows
+        for viewing, listing, property_record, unit, landlord, area in rows
     ]
 
 
@@ -113,9 +118,10 @@ def list_landlord_viewings(
 ):
     _landlord(user)
     rows = db.execute(
-        select(ViewingRequest, Listing, Property, PropertyUnit, LandlordProfile, TenantProfile)
+        select(ViewingRequest, Listing, Property, PropertyUnit, LandlordProfile, TenantProfile, Area)
         .join(Listing, ViewingRequest.listing_id == Listing.id)
         .join(Property, Listing.property_id == Property.id)
+        .join(Area, Area.id == Property.area_id)
         .outerjoin(PropertyUnit, Listing.unit_id == PropertyUnit.id)
         .join(LandlordProfile, Property.landlord_id == LandlordProfile.user_id)
         .join(TenantProfile, ViewingRequest.tenant_id == TenantProfile.user_id)
@@ -132,6 +138,9 @@ def list_landlord_viewings(
             "updated_at": viewing.updated_at,
             "status": _visible_status(viewing),
             "property_address": property_record.address_line,
+            "area_name": area.name,
+            "district": area.district,
+            "division": area.division,
             "property_type": property_record.property_type,
             "unit_number": unit.unit_number if unit else None,
             "monthly_rent": float(unit.monthly_rent if unit else property_record.monthly_rent),
@@ -139,7 +148,7 @@ def list_landlord_viewings(
             "landlord_name": landlord.full_name,
             "tenant_name": tenant.full_name,
         }
-        for viewing, listing, property_record, unit, landlord, tenant in rows
+        for viewing, listing, property_record, unit, landlord, tenant, area in rows
     ]
 
 

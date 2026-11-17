@@ -7,13 +7,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.audit import log_action
 from app.db.models.listings import Listing
+from app.db.models.areas import Area
 from app.db.models.landlord_profiles import LandlordProfile
 from app.db.models.properties import Property
 from app.db.models.property_units import PropertyUnit
@@ -45,17 +46,34 @@ def _landlord(user: User) -> None:
 @router.get("/mine", response_model=list[PropertyResponse])
 def list_my_properties(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _landlord(user)
-    return db.execute(select(Property).where(Property.landlord_id == user.id).order_by(Property.created_at.desc())).scalars().all()
+    rows = db.execute(
+        select(Property, Area)
+        .join(Area, Area.id == Property.area_id)
+        .where(Property.landlord_id == user.id)
+        .order_by(Property.created_at.desc())
+    ).all()
+    return [_property_with_area(property_record, area) for property_record, area in rows]
+
+
+def _property_with_area(property_record: Property, area: Area) -> dict:
+    return {
+        **{column.name: getattr(property_record, column.name) for column in Property.__table__.columns},
+        "area_name": area.name,
+        "district": area.district,
+        "division": area.division,
+    }
 
 
 @router.get("/available", response_model=list[PropertyResponse])
 def list_available_properties(db: Session = Depends(get_db)):
-    return db.execute(
-        select(Property)
+    rows = db.execute(
+        select(Property, Area)
         .join(Listing, Listing.property_id == Property.id)
+        .join(Area, Area.id == Property.area_id)
         .where(Listing.status == "available")
         .order_by(Property.created_at.desc())
-    ).scalars().all()
+    ).all()
+    return [_property_with_area(property_record, area) for property_record, area in rows]
 
 
 @router.get("/available-listings", response_model=list[AvailableListingResponse])
@@ -65,7 +83,10 @@ def list_available_listings(
     max_rent: Decimal | None = Query(None, ge=0),
     db: Session = Depends(get_db),
 ):
-    filters = [Listing.status == "available"]
+    filters = [
+        Listing.status == "available",
+        or_(Listing.unit_id.is_(None), PropertyUnit.status == "available"),
+    ]
     if area_id is not None:
         filters.append(Property.area_id == area_id)
     if min_rent is not None and max_rent is not None and min_rent > max_rent:
@@ -76,8 +97,9 @@ def list_available_listings(
     if max_rent is not None:
         filters.append(rent <= max_rent)
     rows = db.execute(
-        select(Listing, Property, PropertyUnit)
+        select(Listing, Property, PropertyUnit, Area)
         .join(Property, Listing.property_id == Property.id)
+        .join(Area, Area.id == Property.area_id)
         .outerjoin(PropertyUnit, Listing.unit_id == PropertyUnit.id)
         .where(*filters)
         .order_by(Listing.created_at.desc())
@@ -85,6 +107,10 @@ def list_available_listings(
     return [
         {
             **{column.name: getattr(listing, column.name) for column in Listing.__table__.columns},
+            "area_id": property_record.area_id,
+            "area_name": area.name,
+            "district": area.district,
+            "division": area.division,
             "property_address": property_record.address_line,
             "property_type": property_record.property_type,
             "monthly_rent": float(unit.monthly_rent if unit else property_record.monthly_rent),
@@ -94,7 +120,7 @@ def list_available_listings(
             "floor_number": unit.floor_number if unit else property_record.floor_number,
             "unit_number": unit.unit_number if unit else None,
         }
-        for listing, property_record, unit in rows
+        for listing, property_record, unit, area in rows
     ]
 
 
@@ -148,7 +174,24 @@ def create_unit(
         raise HTTPException(status_code=409, detail="This apartment number already exists in the property")
     unit = PropertyUnit(property_id=property_id, **payload.model_dump())
     db.add(unit)
-    db.commit()
+    try:
+        db.flush()
+        log_action(
+            db,
+            "property_unit.create",
+            user.id,
+            user.role,
+            "property_unit",
+            unit.id,
+            metadata={"property_id": str(property_id), "unit_number": unit.unit_number},
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+        if constraint == "uq_property_unit_number":
+            raise HTTPException(status_code=409, detail="This apartment number already exists in the property") from exc
+        raise HTTPException(status_code=400, detail="Apartment could not be saved. Check the apartment details and try again.") from exc
     db.refresh(unit)
     return unit
 
@@ -169,6 +212,8 @@ def create_unit_listing(
     ).scalar_one_or_none()
     if not unit:
         raise HTTPException(status_code=404, detail="Apartment not found for this landlord")
+    if payload.status == "available" and unit.status != "available":
+        raise HTTPException(status_code=409, detail="Only available apartments can be published")
     live = db.execute(
         select(Listing).where(
             Listing.property_id == unit.property_id,
@@ -245,6 +290,10 @@ def update_listing(listing_id: UUID, payload: ListingUpdate, db: Session = Depen
     title = payload.title.strip()
     if not title:
         raise HTTPException(400, "Enter a listing title")
+    if payload.status == "available" and listing.unit_id:
+        unit = db.get(PropertyUnit, listing.unit_id)
+        if unit is None or unit.status != "available":
+            raise HTTPException(status_code=409, detail="Only available apartments can be published")
     listing.title = title
     listing.description = payload.description
     listing.status = payload.status

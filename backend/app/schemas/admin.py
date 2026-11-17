@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Optional, Any, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, validator, ConfigDict
 
 # ---------------------------------------------------------------------------
 # User management
@@ -33,9 +33,9 @@ class UserUpdateActive(BaseModel):
     is_active: bool
 
 class AdminCreate(BaseModel):
-    email: str
-    password: str = Field(..., min_length=8)
-    full_name: str
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    full_name: str = Field(..., min_length=1, max_length=100)
 
 # ---------------------------------------------------------------------------
 # Official creation (government user + profile)

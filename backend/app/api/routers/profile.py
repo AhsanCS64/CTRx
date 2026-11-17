@@ -1,14 +1,18 @@
 """Private, self-service account preferences for all roles."""
 
 from base64 import b64encode
+from hashlib import sha256
 from io import BytesIO
+from pathlib import Path
 from typing import Annotated, Literal
+from uuid import uuid4
 
 from cryptography.fernet import Fernet
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -45,17 +49,42 @@ class AppearanceUpdate(BaseModel):
 
 def _profile_response(db: Session, user: User) -> ProfileResponse:
     profile = db.get(AccountProfile, user.id)
-    if profile is None:
-        return ProfileResponse(display_name=None, contact_phone=None, photo_url=None)
-    phone = profile.contact_phone_enc
-    photo = profile.photo
+    phone = profile.contact_phone_enc if profile else None
+    photo = _read_profile_photo(db, user.id)
+    if photo is None and profile:
+        photo = profile.photo
     return ProfileResponse(
-        display_name=profile.display_name,
+        display_name=profile.display_name if profile else None,
         contact_phone=Fernet(settings.ENCRYPTION_KEY.encode()).decrypt(phone).decode() if phone else None,
         photo_url="data:image/jpeg;base64," + b64encode(photo).decode("ascii") if photo else None,
-        appearance=profile.appearance,
-        theme=profile.theme,
+        appearance=profile.appearance if profile else "light",
+        theme=profile.theme if profile else "teal",
     )
+
+
+def _storage_path(storage_key: str) -> Path | None:
+    root = Path(settings.STORAGE_DIR).resolve()
+    candidate = (root / storage_key).resolve()
+    return candidate if candidate.parent == root else None
+
+
+def _read_profile_photo(db: Session, user_id) -> bytes | None:
+    row = db.execute(text("""
+        SELECT m.storage_key
+        FROM photos p JOIN media_files m ON m.id = p.media_id
+        WHERE p.user_id = :user_id AND p.photo_type = 'profile'
+          AND p.is_primary AND m.deleted_at IS NULL
+        ORDER BY p.created_at DESC LIMIT 1
+    """), {"user_id": user_id}).mappings().first()
+    if not row:
+        return None
+    path = _storage_path(row["storage_key"])
+    if path is None:
+        return None
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
 
 
 def _save(db: Session, user: User, action: str, **values) -> ProfileResponse:
@@ -63,6 +92,72 @@ def _save(db: Session, user: User, action: str, **values) -> ProfileResponse:
     db.execute(statement.on_conflict_do_update(index_elements=[AccountProfile.user_id], set_=values))
     log_action(db, action, user.id, user.role, "user", user.id)
     db.commit()
+    return _profile_response(db, user)
+
+
+def _save_profile_photo(db: Session, user: User, photo: bytes) -> ProfileResponse:
+    storage_key = f"profile_{uuid4().hex}.jpg"
+    path = _storage_path(storage_key)
+    if path is None:
+        raise HTTPException(500, "Profile photo storage is not available")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(photo)
+    old_path = None
+    try:
+        db.execute(
+            insert(AccountProfile)
+            .values(user_id=user.id)
+            .on_conflict_do_nothing(index_elements=[AccountProfile.user_id])
+        )
+        previous = db.execute(text("""
+            SELECT m.id, m.storage_key
+            FROM photos p JOIN media_files m ON m.id = p.media_id
+            WHERE p.user_id = :user_id AND p.photo_type = 'profile' AND p.is_primary
+            FOR UPDATE OF p, m
+        """), {"user_id": user.id}).mappings().first()
+        if previous:
+            old_path = _storage_path(previous["storage_key"])
+            db.execute(text("UPDATE photos SET is_primary = false, updated_at = now() WHERE user_id = :user_id AND photo_type = 'profile' AND is_primary"), {"user_id": user.id})
+            db.execute(text("UPDATE media_files SET deleted_at = now() WHERE id = :media_id"), {"media_id": previous["id"]})
+        media_id = db.execute(text("""
+            INSERT INTO media_files
+                (storage_key, original_filename, mime_type, file_size_bytes, width, height, sha256, uploaded_by)
+            VALUES (:key, 'profile.jpg', 'image/jpeg', :size, 256, 256, :sha, :user_id)
+            RETURNING id
+        """), {"key": storage_key, "size": len(photo), "sha": sha256(photo).hexdigest(), "user_id": user.id}).scalar_one()
+        db.execute(text("""
+            INSERT INTO photos (media_id, user_id, photo_type, is_primary, verification_status)
+            VALUES (:media_id, :user_id, 'profile', true, 'unverified')
+        """), {"media_id": media_id, "user_id": user.id})
+        db.execute(text("UPDATE account_profiles SET photo = NULL WHERE user_id = :user_id"), {"user_id": user.id})
+        log_action(db, "profile.photo.update", user.id, user.role, "user", user.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        path.unlink(missing_ok=True)
+        raise
+    if old_path:
+        old_path.unlink(missing_ok=True)
+    return _profile_response(db, user)
+
+
+def _remove_profile_photo(db: Session, user: User) -> ProfileResponse:
+    row = db.execute(text("""
+        SELECT m.id, m.storage_key
+        FROM photos p JOIN media_files m ON m.id = p.media_id
+        WHERE p.user_id = :user_id AND p.photo_type = 'profile' AND p.is_primary
+        FOR UPDATE OF p, m
+    """), {"user_id": user.id}).mappings().first()
+    db.execute(text("UPDATE photos SET is_primary = false, updated_at = now() WHERE user_id = :user_id AND photo_type = 'profile' AND is_primary"), {"user_id": user.id})
+    if row:
+        db.execute(text("UPDATE media_files SET deleted_at = now() WHERE id = :media_id"), {"media_id": row["id"]})
+    db.execute(text("UPDATE account_profiles SET photo = NULL WHERE user_id = :user_id"), {"user_id": user.id})
+    log_action(db, "profile.photo.remove", user.id, user.role, "user", user.id)
+    db.commit()
+    if row:
+        path = _storage_path(row["storage_key"])
+        if path:
+            path.unlink(missing_ok=True)
     return _profile_response(db, user)
 
 
@@ -99,7 +194,7 @@ async def upload_photo(request: Request, db: Session = Depends(get_db), user: Us
             raise HTTPException(413, "Choose a photo under 4 MB")
         data.extend(chunk)
     photo = await run_in_threadpool(_normalize_photo, bytes(data))
-    return await run_in_threadpool(_save, db, user, "profile.photo.update", photo=photo)
+    return await run_in_threadpool(_save_profile_photo, db, user, photo)
 
 
 @router.put("/appearance", response_model=ProfileResponse)
@@ -109,5 +204,5 @@ def update_appearance(payload: AppearanceUpdate, db: Session = Depends(get_db), 
 
 @router.delete("/photo", response_model=ProfileResponse)
 def remove_photo(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return _save(db, user, "profile.photo.remove", photo=None)
+    return _remove_profile_photo(db, user)
 

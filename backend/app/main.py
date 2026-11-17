@@ -76,11 +76,16 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):  # noqa: D401
-        """Return a 500 response with the actual error message for debugging."""
+        """Log the details and expose them only in development."""
         logger.exception("Unhandled exception: %s", exc)
+        detail = (
+            f"{type(exc).__name__}: {exc}"
+            if config.settings.APP_ENV == "development"
+            else "An unexpected server error occurred"
+        )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": f"{type(exc).__name__}: {exc}"},
+            content={"detail": detail},
         )
 
     @app.get("/health")

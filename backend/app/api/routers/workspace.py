@@ -128,9 +128,8 @@ def revoke_sharing(grant_id: int, db: Session = Depends(get_db), user: User = De
     db.execute(text("""
         INSERT INTO consent_events (access_grant_id, tenant_id, landlord_id, event_type, scopes,
                                    actor_id, reason, metadata)
-        SELECT NULL, :tenant, :landlord, 'revoked', categories, :actor,
-               'Tenant revoked rental history access', jsonb_build_object('grant_id', :grant)
-        FROM rental_history_grants WHERE id = :grant
+        VALUES (NULL, :tenant, :landlord, 'revoked', :scopes, :actor,
+                'Tenant revoked rental history access', jsonb_build_object('grant_id', :grant))
     """), {"tenant": user.id, "landlord": landlord_id, "scopes": _consent_scopes(row["categories"]),
            "actor": user.id, "grant": grant_id})
     db.commit()

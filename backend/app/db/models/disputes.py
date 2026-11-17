@@ -20,7 +20,7 @@ DisputeStatusEnum = Enum(
 class Dispute(Base):
     __tablename__ = "disputes"
     __table_args__ = (
-        Index("ix_dispute_entity_active", "entity_type", "entity_id", postgresql_where=Column("status").in_("open", "under_review")),
+        Index("ix_dispute_entity_active", "entity_type", "entity_id", postgresql_where=Column("status").in_(("open", "under_review"))),
     )
 
     id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())

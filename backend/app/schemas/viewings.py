@@ -22,6 +22,9 @@ class ViewingResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     property_address: Optional[str] = None
+    area_name: Optional[str] = None
+    district: Optional[str] = None
+    division: Optional[str] = None
     property_type: Optional[str] = None
     unit_number: Optional[str] = None
     monthly_rent: Optional[float] = None

@@ -144,6 +144,14 @@ Built on `tenancies` + `payment_requests` + `ledger_entries`.
   instructions. The return is area-scoped when it re-enters the local queue;
   the database trigger enforces the reviewer level and required note.
 
+### Profile media and rent confirmation
+- New profile avatars are normalized and stored as files under `STORAGE_DIR`;
+  `media_files` stores file metadata and `photos` associates the active profile
+  image with a user. `account_profiles.photo` remains a legacy read fallback.
+- Migration `20261127_rent_confirmation` relaxes the payment-request maker/checker
+  constraint only for accepted rent receipts with a recorded payment method.
+  Apply it to the installed schema before enabling landlord rent confirmation.
+
 ## Design patterns used
 
 - SQLAlchemy `Mapped[mapped_column]` style; migrations managed by Alembic (do
@@ -234,6 +242,10 @@ On phones and tablets, the workspace navigation opens as a scrollable drawer wit
 
 The government overview includes a searchable worklist preview and a scoped application status breakdown. Central approval and certificate issuance require confirmation. Shared surfaces and KPI cards use palette-derived tokens.
 `frontend/src/presentation.css` is loaded after the base styles and provides palette-aware presentation rules. The landing developer card lives in `frontend/src/EngineerProfile.tsx`.
+
+The `areas` table is seeded from `backend/app/data/bangladesh_areas.json` using `python -m app.scripts.seed_areas`. It stores upazila/thana records with division and district codes; tenant applications, relocations, landlord properties, local official assignments, and tenant listing filters use cascading division → district → upazila selectors. Property and listing responses include the associated area, district, and division for clear location display.
+
+The uploaded `ctrx.backup` is schema-only; it contains no account rows to restore. First-admin setup is a one-time bootstrap gated by the server's `SEED_PASSWORD`, and admin names are stored in `account_profiles.display_name`.
 The full official review queue supports applicant or area search and a status filter over the scoped records already loaded.
 Records & privacy shows an independent loading or retry state for privacy history and supports older consent records with missing scope values.
 Workspace overview places tenant application and home records before recommended actions. Sharing panels and workspace forms stack at narrow widths.

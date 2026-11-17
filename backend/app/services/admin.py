@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models.users import User
+from app.db.models.account_profiles import AccountProfile
 from app.db.models.official_profiles import OfficialProfile
 from app.db.models.areas import Area
 from app.db.models.system_settings import SystemSetting
@@ -38,6 +39,12 @@ def create_admin(db: Session, payload: Any, bootstrap: bool = False, actor_id: O
     elif actor_id is None:
         raise ValueError("An existing administrator is required")
 
+    if db.execute(select(User.id).where(User.email == payload.email)).scalar_one_or_none():
+        raise ValueError("Email already registered")
+    full_name = payload.full_name.strip()
+    if not full_name:
+        raise ValueError("Full name is required")
+
     user = User(
         email=payload.email,
         password_hash=security.hash_password(payload.password),
@@ -47,6 +54,7 @@ def create_admin(db: Session, payload: Any, bootstrap: bool = False, actor_id: O
     )
     db.add(user)
     db.flush()
+    db.add(AccountProfile(user_id=user.id, display_name=full_name))
     if actor_id:
         log_action(
             db,

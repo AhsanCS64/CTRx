@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from app.db.session import SessionLocal
 from app.core.config import settings
+from app.scripts.seed_areas import insert_areas
 from argon2 import PasswordHasher
 
 logger = logging.getLogger(__name__)
@@ -33,28 +34,7 @@ def seed():
     db = SessionLocal()
     try:
         # ---- AREAS (DIVISION/DISTRICT/UPAZILA) ----
-        # Assuming a table "areas" with columns: id (UUID default), division_code, division_name, district_code, district_name, upazila_code, upazila_name
-        area_inserts = [
-            ("01", "Dhaka", "01", "Dhaka", "101", "Dhanmondi"),
-            ("01", "Dhaka", "01", "Dhaka", "102", "Gulshan"),
-            ("02", "Chittagong", "09", "Chittagong", "201", "Pahartali"),
-        ]
-        for div_code, div_name, dist_code, dist_name, upa_code, upa_name in area_inserts:
-            stmt = text(
-                """
-                INSERT INTO areas (division_code, division, district_code, district, upazila_code, name)
-                VALUES (:div_code, :div_name, :dist_code, :dist_name, :upa_code, :upa_name)
-                ON CONFLICT (division_code, district_code, upazila_code) DO NOTHING
-                """
-            )
-            db.execute(stmt, {
-                "div_code": div_code,
-                "div_name": div_name,
-                "dist_code": dist_code,
-                "dist_name": dist_name,
-                "upa_code": upa_code,
-                "upa_name": upa_name,
-            })
+        insert_areas(db)
         logger.info("Areas seeded")
 
         # ---- AMENITIES ----
