@@ -1,0 +1,44 @@
+services:
+  backend:
+    image: ctrx-backend:local
+    env_file: .env.docker
+    environment:
+      STORAGE_DIR: /app/storage
+    volumes:
+      - media:/app/storage
+    expose: ["8000"]
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.scripts.container_db", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+  frontend:
+    image: ctrx-frontend:local
+    ports:
+      - "127.0.0.1:${CTRX_HTTP_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  # Explicit one-shot service; API workers never run migrations.
+  migrate:
+    image: ctrx-backend:local
+    profiles: ["tools"]
+    env_file: .env.docker
+    environment:
+      STORAGE_DIR: /app/storage
+    volumes:
+      - media:/app/storage
+    command: ["python", "-m", "app.scripts.container_db", "upgrade"]
+    restart: "no"
+volumes:
+  media:
+

@@ -1,38 +1,52 @@
-# Docker Compose for CTRx
-version: "3.9"
-
 services:
   backend:
+    image: ctrx-backend:local
     build:
-      context: ./ctrx
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env.docker
     environment:
-      - APP_ENV=development
-      - LOG_LEVEL=INFO
-      - DATABASE_URL=${DATABASE_URL}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - HMAC_SECRET=${HMAC_SECRET}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - CORS_ORIGINS=["http://localhost:5173"]
-      - STORAGE_DIR=/app/storage
-      - VERIFY_BASE_URL=${VERIFY_BASE_URL}
-    ports:
-      - "8000:8000"
+      STORAGE_DIR: /app/storage
     volumes:
-      - ./ctrx:/app
-      - ./ctrx/storage:/app/storage
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-
+      - media:/app/storage
+    expose: ["8000"]
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.scripts.container_db", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
   frontend:
+    image: ctrx-frontend:local
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000/api
+      context: .
+      dockerfile: frontend/Dockerfile
     ports:
-      - "5173:5173"
+      - "127.0.0.1:${CTRX_HTTP_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  # Explicit one-shot service; API workers never run migrations.
+  migrate:
+    image: ctrx-backend:local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    profiles: ["tools"]
+    env_file: .env.docker
+    environment:
+      STORAGE_DIR: /app/storage
     volumes:
-      - ./frontend:/app
-    command: npm run dev -- --host 0.0.0.0 --port 5173
-
-# No DB service – use an external PostgreSQL instance as per the .env files.
+      - media:/app/storage
+    command: ["python", "-m", "app.scripts.container_db", "upgrade"]
+    restart: "no"
+volumes:
+  media:

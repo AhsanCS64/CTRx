@@ -252,7 +252,7 @@ Workspace overview places tenant application and home records before recommended
 Government overview places the review worklist before the workflow guide. Records & privacy appears in tenant and landlord navigation.
 
 The public landing page uses scoped styles in frontend/src/landing.css for its navigation, rental identity introduction, feature grid, and registration actions.
-The tenant overview links to application tracking or starts a new application, and offers PDF download when an active certificate is available. Current Home shows ledger-backed payment status and the total paid for the tenancy. The RIC stepper connects milestones horizontally and stacks them on narrow screens. Sidebar navigation scrolls independently of the logout footer.
+The tenant overview links to application tracking or starts a new application, and offers PDF download when an active certificate is available. Current Home shows ledger-backed payment status and the total paid for the tenancy. The RIC stepper uses four responsive circles with connector bars and selectable milestone details. Sidebar navigation scrolls independently of the logout footer.
 The workspace header groups the greeting and account controls in a padded card, with controls below the title on narrower screens.
 Dark workspace text uses separate heading, body, and metadata tones, with palette accents for actions and semantic colors for alerts and review status.
 Tenant Current Home shows the next due date for settled rent and opens payment reporting from urgent actionable invoices. Payment reporting supports named local transfer methods and still requires landlord confirmation. The RIC stepper uses recorded notes and timestamps, including linked certificate issuance. Workspace search uses already scoped records and the workspace header and navigation support বাংলা. Tenants can generate signed 24-hour public rental identity links that show the applicant name, certificate standing, and aggregate rental reliability.
@@ -261,11 +261,56 @@ The RIC progress tracker distinguishes returned review, rejection, approval pend
 Inbox supports keyword search and an unread filter for the latest notifications returned by the workspace API. Exports builds a multi-sheet Excel workbook from role-scoped records and excludes private identity data and reviewer notes.
 Excel exports include record-scoped tenant and landlord names, the saved residence address for rent and tenancy records, listing titles, and applicant or certificate-holder names where applicable.
 Reliability combines confirmed ledger payments, corrections, and landlord-recorded missed invoices. Missed records are append-only, scoped to one tenancy and month, and stop affecting the live score if a confirmed payment covers that period. The tenant receives a notification. Apply the reliability and tenancy-feedback migrations before serving these endpoints.
-Tenants and landlords can add or edit one structured assessment per category on their shared tenancy through My rental → Tenancy feedback. Feedback is visible only to parties on that tenancy and does not affect reliability scoring.
+Tenants and landlords can add or edit one structured assessment per category on their shared tenancy through My rental → Tenancy feedback. Feedback is visible only to parties on that tenancy. Monthly landlord feedback can affect the score under the rule below.
 Tenancy feedback is month-specific. Positive landlord feedback with no concern in the same calendar month adds at most one reliability point per tenant. Earlier remarks remain readable without affecting the score. Optional marital status and living arrangement are private profile preferences and do not enter scoring or exports.
-Landlords can correct a start date from the tenancy feedback page. The API updates any unacknowledged lease draft, audits the correction, notifies the tenant, and rejects conflicts with existing records, acknowledged terms, or database date constraints.
+Landlords can correct a start date from Lease agreements → Tenancy details. The API updates any unacknowledged lease draft, audits the correction, notifies the tenant, and rejects conflicts with existing records, acknowledged terms, or database date constraints.
 Start-date corrections are in Lease agreements → Tenancy details. Feedback links there when the tenancy has not started. Listing creation, publishing, searches, and offer acceptance respect apartment-level occupancy. Building-level legacy tenancies reserve the property.
 For acknowledged leases, landlords propose a start-date correction and the tenant approves or declines it. The tenancy date changes only on approval, and the previous acknowledged terms remain recorded in the audit history.
 Accepted apartment offers persist the unit on the tenancy. The apartment migration links older tenancies when a matching accepted offer identifies one unit. Lease details, rental documents, rent, feedback, tenancy care, and Excel exports show the unit where recorded.
 Reliability caps the effective payment deadline at the end of the billed month. A payment in the following month is late even when an invoice or tenancy started after the usual due day.
 Profile themes are Jade, Harbor, Graphite, and Comfort (Warm Paper in light mode and Midnight Forest in dark mode). Legacy saved palette names map to the curated lineup without a database migration.
+
+
+## Agent handoff
+
+### Container architecture
+
+Portable Windows launchers and image-only Compose live in `portable/`.
+`scripts/Export-Portable.ps1` exports existing images and private configuration
+into ignored `CTRx-Portable/`. Launchers use project `ctrx-portable`, check schema
+readiness without migrations, retain media on stop, and open the browser.
+Media export is separate; see `portable/README.md`.
+
+See `DOCKER.md` for setup and validation limits. Both Dockerfiles use repository
+root build contexts. `docker-compose.yml` runs a non-root FastAPI image and a
+production Vite build served by unprivileged Nginx on port 8080, with same-origin
+`/api` and `/health` proxying. Repository `Assets` is included in both images.
+Secrets live in ignored `.env.docker` (template `.env.docker.example`). Named
+volume `media` mounts at `/app/storage`; optional `docker-compose.local.yml`
+adds an isolated PostgreSQL 18 service and `pgdata` volume without a host DB port.
+
+Commands from root: `docker compose --env-file .env.docker build`, then for an
+empty database only, `docker compose --env-file .env.docker run --rm migrate
+python -m app.scripts.container_db bootstrap`. The reviewed schema-only baseline
+is `backend/docker/base-schema.sql`, at revision `20261127_rent_confirmation`;
+bootstrap refuses existing application relations and records this revision
+transactionally. Never bootstrap an existing deployment or stamp an unknown schema.
+Run `docker compose --env-file .env.docker run --rm migrate`, optionally seed
+areas with that service, then `docker compose --env-file .env.docker up -d --wait
+backend frontend`. `down` retains volumes. API workers never migrate on startup.
+Use a direct PostgreSQL connection for schema commands (session advisory lock).
+Backend health checks database connectivity and migration head; frontend health
+checks Nginx. `container_smoke` validates HTTP, auth, photos, PDFs and persistence
+only against explicitly enabled disposable local databases; see the runbook.
+Container Python pins are separate from local/hosted requirements. Alembic URL
+configuration now supports percent-encoded passwords. Existing dev and hosted
+workflows remain supported. Docker was unavailable during this change; frontend
+build/type-check, 23 focused backend tests and isolated PostgreSQL schema/migration
+SQL passed. Full Linux container integration remains to be run.
+
+Read backend/FEATURE_BACKEND_MAP.md for the current full application map and
+Dockerization starting points. Its latest handoff section covers frontend entry
+points, apartment identity, scoring, profiles, deployment and validation.
+Latest migration in this checkout is 20261201_tenancy_apartment. Alembic assumes
+an existing base schema. Inspect actual environment settings and service versions
+before diagnosing issues, because local and hosted deployments can differ.

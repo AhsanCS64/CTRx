@@ -3,21 +3,22 @@
 ## Prerequisites
 - Python 3.12+
 - Node 20+
-- PostgreSQL 17 (database `ctrx`, role `ctrx_app`)
+- PostgreSQL (the fresh container schema is validated on 18; database `ctrx`, role `ctrx_app`)
 - WeasyPrint system libraries (libpango, libcairo) for PDF generation
 
 ## Setup & Run Order
-1. Apply `ctrx_schema_v0.3.sql` to the `ctrx` database as `ctrx_app`.
-2. Configure `ctrx/.env` with the database URL and production secrets.
-3. Install backend dependencies with `cd ctrx; poetry install`.
+1. Initialize an empty database from the reviewed base schema, then apply Alembic migrations (see [DOCKER.md](DOCKER.md)); existing databases retain their schema and migration history.
+2. Configure `backend/.env` with the database URL and secrets using `backend/.env.example`.
+3. Install backend dependencies with `cd backend; python -m pip install -r requirements.txt`.
 4. Seed optional demo data with `python -m app.scripts.seed`.
-5. Start the API from `ctrx`: `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`.
-6. In a second terminal, run the UI: `cd frontend; npm install; npm run dev -- --host 0.0.0.0`.
+5. Start the local API from `backend`: `python -m uvicorn app.main:app --host 127.0.0.1 --port 8003 --reload`.
+6. In a second terminal, run the UI: `cd frontend; npm ci; npm run dev` (port 5177; `/api` proxies to 8003).
 
-The API health check is `http://127.0.0.1:8000/health`; the minimal UI displays
-both API and PostgreSQL status. For deployment, configure the secrets in the
-environment and run `docker compose up --build`; place it behind an HTTPS
-reverse proxy and use a hosted PostgreSQL instance.
+The local API health check is `http://127.0.0.1:8003/health`; inspect `db: 1`
+for database connectivity. The complete production-image Docker workflow,
+optional isolated PostgreSQL, explicit bootstrap/migration commands and validation
+limits are documented in [DOCKER.md](DOCKER.md). Docker does not change the
+existing Vite/venv or Vercel/Render/Neon deployments.
 
 ## Environment Variables (.env)
 ```

@@ -217,3 +217,186 @@ explicit `VITE_API_BASE_URL` overrides it.
   events. `/api/workspace/reliability/events` exposes recorded score events.
 - Certificate download activity is recorded in
   `certificate_delivery_events` and displayed in Records & privacy.
+
+
+## Full application handoff
+
+This section supplements the earlier tables with the current cross-layer behavior.
+Use the implementation and installed schema to resolve older descriptions.
+
+### Frontend entry points
+
+frontend/src/main.tsx mounts App.tsx. CSS loads in this order: styles.css,
+presentation.css, landing.css. App.tsx owns authentication, the fetch/refresh
+helper, workspace state, role navigation and most domain panels. Its workspace
+key selects a rendered screen. The pages directory is older scaffolding and is
+not the primary application entry point.
+
+| Feature | Frontend source | Backend source under app |
+| --- | --- | --- |
+| Rent, tenancies and listings | App.tsx | api/routers/rent.py, tenancies.py, properties.py |
+| Offer negotiation | App.tsx | api/routers/rental_offers.py |
+| Leases, statements, disputes, evidence | RentalRecords.tsx | api/routers/rental_records.py |
+| Inspections, repairs, deposits | TenancyCare.tsx | api/routers/tenancy_care.py |
+| Monthly two-way feedback | TenancyFeedback.tsx | api/routers/tenancies.py |
+| Reliability and controlled sharing | App.tsx, TrustHistory.tsx | services/scoring.py, api/routers/workspace.py |
+| Public 24-hour identity verification | RentalIdentityShare.tsx | api/routers/rental_identity_sharing.py |
+| Excel exports | ExportPanel.tsx, workbookExport.ts, dataset definitions in App.tsx | Existing role-scoped endpoints |
+| Profile and themes | App.tsx, presentation.css | api/routers/profile.py, db/models/account_profiles.py |
+| Workspace search | WorkspaceSearch.tsx | Already authorized loaded records |
+
+Inbox keyword search and All/Unread filters cover the latest 100 notifications
+returned by the API. Command search uses loaded scoped records. The language
+switch provides partial Bangla localization of header and navigation.
+Excel exports generate XLSX in the browser, with selected sheets, numeric BDT
+amounts, literal strings, frozen headers and filters. Rental exports include
+party names, residence address and apartment.
+
+### Building and apartment identity
+
+properties represents buildings or whole-property rentals. property_units
+represents apartments. listings.unit_id identifies the advertised apartment;
+tenancies.unit_id persists the rented apartment. Accepted offers create linked
+tenancies. Migration 20261201_tenancy_apartment backfills older records only when
+accepted offers identify an unambiguous unit. Unresolved legacy tenancies have a
+null unit and reserve the property.
+
+Vacancy checks apply during listing creation, editing, discovery and offer
+acceptance. One rented apartment leaves other apartments eligible. A database
+exclusion constraint prevents overlapping active tenancies for the same apartment.
+API checks also respect legacy whole-property tenancies.
+Apartment numbers appear in rent, tenancy selectors, leases, statements, receipts,
+feedback, tenancy care, offers, listings and Excel exports.
+
+Lease terms are stored as a snapshot in lease_agreements. An account-specific
+historical Niribili Apartment 5-Ka lease correction already exists in the database.
+Do not turn that correction into generic seed logic. Financial history is retained
+when a tenancy is ended or terminated.
+
+### Dates, feedback and reliability
+
+Date corrections live in Lease agreements → Tenancy details. A landlord can
+correct an unacknowledged draft. Acknowledged leases require a landlord proposal
+and tenant approval. Audit history retains previous terms and acknowledgements.
+The API validates dates, overlap and existing rent/feedback records. Notifications
+link to the lease. Feedback only links to tenancy details when the date blocks review.
+
+monthly_tenancy_feedback stores one rating per tenancy, author, month and category.
+Both parties review the other party. Categories include communication, rent
+handling, property care, repairs and conduct. Future months and months outside the
+tenancy are rejected. tenancy_feedback holds older undated remarks.
+
+services/scoring.py is the shared live calculation for Reliability, score history,
+controlled sharing and public verification. Scores recalculate on read from records.
+
+- Baseline 50 with qualifying history, bounded to 0–100.
+- Confirmed on-time payments add 2; confirmed late payments subtract 1.
+- The deadline is the latest of rent due day, tenancy start and invoice issue date,
+  capped at the billed month's end. Following-month payments are late. Invoice
+  timestamps and payment reporting use Dhaka dates.
+- Landlords explicitly record overdue, unreported rent as missed, subtracting 3.
+  Append-only score events/snapshots prevent duplicate missed events for a period.
+  The tenant receives a notification.
+- A net-positive confirmed payment clears the same tenancy/month missed penalty.
+  Ledger corrections adjust the original event without rewriting it. Fully reversed
+  payments alone leave no qualifying score history.
+- Positive monthly landlord feedback adds at most 1 per tenant/calendar month when
+  no concern is recorded for that month. More categories or repeated edits do not
+  stack points. Tenant feedback about landlords does not affect the tenant score.
+- Marital status, living arrangement and uploaded documents do not affect the score.
+
+Ledger and stored scoring history are append-only. Fix the shared calculation or
+running backend version instead of changing historical payment rows to repair a label.
+The app reports a payment before landlord confirmation; confirmation posts the ledger
+entry and enables a receipt. There is no live bKash/Nagad webhook integration.
+
+### Profiles and presentation
+
+Optional marital status and living arrangement are private account_profiles fields.
+Profile photos use normalized files under STORAGE_DIR, media_files metadata and
+active photos associations, with a legacy fallback.
+Themes are Jade, Harbor, Graphite and Comfort. Comfort is Warm Paper in light mode
+and Midnight Forest in dark mode. Legacy names map into this lineup. Theme changes
+use the profile appearance endpoint. Semantic badges keep success/warning/error colors.
+The four-circle RIC tracker distinguishes approval from certificate issuance and
+opens recorded milestone details. Motion respects reduced-motion preferences.
+
+### Runtime and deployment
+
+app/core/config.py owns settings. DATABASE_URL, TEST_DATABASE_URL, JWT_SECRET_KEY,
+HMAC_SECRET and ENCRYPTION_KEY are currently required when importing the app.
+Keep secrets outside images and source control; preserve the encryption key for
+existing encrypted data. CORS_ORIGINS is a JSON array. STORAGE_DIR needs persistent
+storage for uploaded media and generated documents. Public frontend and verification
+URLs determine external links. Password reset supports Resend or SMTP; the demo
+password-reset endpoint is enabled by default via a separate flag.
+
+/health reports API status and a database flag; inspect both for readiness.
+Register routers in app/api/routers/__init__.py. Run Alembic explicitly with the
+backend working directory and configured environment. Latest migration is
+20261201_tenancy_apartment. The migration chain assumes a pre-existing base schema.
+The schema-only ctrx.backup can initialize a fresh database after owner/extension
+compatibility review. It contains no demo users.
+
+Local Vite defaults to port 5177 with /api proxying to backend port 8003.
+CTRX_DEV_API_TARGET can override the proxy in an ignored local environment file.
+The browser API base uses VITE_API_BASE_URL or the browser origin. VITE variables
+are bundled at build time. Internal container names belong in proxy upstreams,
+not browser API URLs. Several development preview ports have been used; inspect
+listeners and environment before launching more servers.
+
+Hosted deployment uses Vercel, Render and Neon. Code commits, service deployments
+and database migrations are separate. Confirm the deployed backend commit and
+actual authenticated response when hosted behavior differs from local behavior.
+
+### Dockerization starting point
+
+Portable distribution uses `portable/compose.yml` without build contexts and
+Windows Start/Stop launchers. `scripts/Export-Portable.ps1` packages existing
+images with private `.env.docker` into ignored `CTRx-Portable/`. Startup performs
+only the read-only schema check, never bootstrap/upgrade. Its separate project
+`ctrx-portable` retains its media volume; media is not bundled automatically.
+
+Implemented container workflow is documented in `../DOCKER.md`.
+
+| Component | Implementation |
+| --- | --- |
+| Build contexts | Repository root for both Dockerfiles; root `.dockerignore` allowlists source, locks and Assets and excludes secrets/user data. Per-directory ignore files document the supported context. |
+| API image | Python 3.12, runtime dependency pins in `requirements-docker.lock`, psycopg binary, Pillow, ReportLab and WeasyPrint 62.3/pydyf 0.10.0 plus native Pango/font dependencies; build-time native PDF check; UID/GID 10001. |
+| Frontend image | `npm ci`, TypeScript check and Vite production build, served by unprivileged Nginx. Includes repository Assets during compilation. No Vite environment file is copied. |
+| HTTP | Host loopback port 8080 to Nginx; `/api` and `/health` preserve paths through the backend proxy. SPA fallback excludes API and missing build assets. Docker DNS is re-resolved on backend replacement. |
+| Configuration | Ignored `.env.docker`, public `.env.docker.example`; supports external PostgreSQL/Neon. Local/hosted environment files remain independent. |
+| Persistence | Named `media` volume at `/app/storage` for normalized uploads and certificate PDFs. Optional `docker-compose.local.yml` adds PostgreSQL 18 and `pgdata`; no published DB port. |
+| Schema management | Explicit `migrate` service runs `app.scripts.container_db upgrade`. API workers never migrate. Schema operations reject concurrency via a session advisory lock; use a direct provider connection. |
+| Bootstrap | `container_db bootstrap` requires an empty public application schema, restores reviewed `docker/base-schema.sql` and records baseline `20261127_rent_confirmation` atomically. This schema-only snapshot was extracted from repository `ctrx.backup`, stripping owner/ACL directives and psql metacommands; it contains no user data. Run upgrade afterward. Never stamp an unknown existing database. |
+| Readiness | Backend health requires HTTP `/health` with `db: 1` and exact Alembic head; frontend waits for backend health and has a static `/healthz` liveness check. |
+| Smoke test | `app.scripts.container_smoke write --require-html-pdf` and `verify`, explicitly enabled only for local disposable data, cover HTTP/frontend assets, auth/refresh, authorization, image upload, native PDF generation and storage after recreation. |
+
+From root, use `docker compose --env-file .env.docker build`; bootstrap only an
+empty database using `run --rm migrate python -m app.scripts.container_db bootstrap`,
+then `run --rm migrate`, seed areas if needed, and `up -d --wait backend frontend`.
+Use `down` to stop without removing volumes. The runbook includes an isolated
+local project and commands, migration, backup and troubleshooting procedures.
+
+Validation: TypeScript check and Vite production build passed; 23 focused backend
+tests passed. Local ReportLab certificate generation and PDF storage round-trip
+passed, as did YAML parsing, Python compilation and dependency constraint checks.
+The reviewed schema restored and remaining migration SQL executed
+against a fresh isolated PostgreSQL 18 cluster, reaching the current head with
+the apartment exclusion constraint and zero users. Single-user mode avoided
+the environment's blocked loopback TCP. Docker and registry/package network
+access were unavailable, so image builds, Compose/Nginx operation, authenticated
+API-to-DB integration, native Linux rendering and volume recreation checks remain
+unverified. No existing Neon database or Vercel/Render deployment was changed.
+
+### Validation and next-agent workflow
+
+Inspect Git status first. Read AGENTS.md, this map, the relevant router/service,
+and its migrations. Confirm the actual frontend entry point and running API version.
+Frontend checks are tsc --noEmit -p frontend/tsconfig.json and npm --prefix frontend
+run build. Backend tests are under backend/tests; many use fake sessions, so they
+do not replace PostgreSQL integration checks. TEST_DATABASE_URL is required by
+current settings. Use isolated test data and avoid printing secrets.
+The frontend npm test script currently calls itself recursively and is not a usable runner.
+Verify normal UI entry points, authorization, API data shapes, and persistence
+before completion. Update AGENTS.md and this map when behavior changes.

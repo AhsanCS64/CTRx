@@ -2,3 +2,10 @@
 .env
 .env.*
 !.env.example
+!.env.docker.example
+tmp/
+frontend/node_modules/
+frontend/dist/
+backend/storage/
+CTRx-Portable/
+portable/ctrx-images.tar

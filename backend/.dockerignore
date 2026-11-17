@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+storage
+*.backup
+.pytest_cache
+# Supported context is repository root; see ../.dockerignore.

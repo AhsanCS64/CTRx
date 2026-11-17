@@ -33,7 +33,8 @@ def get_url() -> str:
     from app.core.config import settings
     return settings.DATABASE_URL
 
-config.set_main_option('sqlalchemy.url', get_url())
+# ConfigParser treats '%' as interpolation, including URL-encoded passwords.
+config.set_main_option('sqlalchemy.url', get_url().replace('%', '%%'))
 
 
 def run_migrations_offline() -> None:

@@ -1,0 +1,6 @@
+.git
+.env
+.env.*
+node_modules
+dist
+# Supported context is repository root; see ../.dockerignore.
