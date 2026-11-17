@@ -27,14 +27,22 @@ MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 MAX_IMAGE_PIXELS = 16_000_000
 
 
+MaritalStatus = Literal["single", "married", "other"]
+LivingArrangement = Literal["alone", "with_family", "with_partner", "with_roommates", "other"]
+
+
 class ProfileUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     display_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    marital_status: MaritalStatus | None = None
+    living_arrangement: LivingArrangement | None = None
     contact_phone: Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+?[0-9]{7,15}$")] | None = None
 
 
 class ProfileResponse(BaseModel):
+    marital_status: MaritalStatus | None = None
+    living_arrangement: LivingArrangement | None = None
     display_name: str | None
     contact_phone: str | None
     photo_url: str | None
@@ -55,6 +63,8 @@ def _profile_response(db: Session, user: User) -> ProfileResponse:
         photo = profile.photo
     return ProfileResponse(
         display_name=profile.display_name if profile else None,
+        marital_status=profile.marital_status if profile else None,
+        living_arrangement=profile.living_arrangement if profile else None,
         contact_phone=Fernet(settings.ENCRYPTION_KEY.encode()).decrypt(phone).decode() if phone else None,
         photo_url="data:image/jpeg;base64," + b64encode(photo).decode("ascii") if photo else None,
         appearance=profile.appearance if profile else "light",
@@ -183,7 +193,8 @@ def get_profile(response: Response, db: Session = Depends(get_db), user: User = 
 @router.put("", response_model=ProfileResponse)
 def update_profile(payload: ProfileUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     phone = Fernet(settings.ENCRYPTION_KEY.encode()).encrypt(payload.contact_phone.encode()) if payload.contact_phone else None
-    return _save(db, user, "profile.update", display_name=payload.display_name, contact_phone_enc=phone)
+    household = payload.model_dump(include={"marital_status", "living_arrangement"}, exclude_unset=True)
+    return _save(db, user, "profile.update", display_name=payload.display_name, contact_phone_enc=phone, **household)
 
 
 @router.put("/photo", response_model=ProfileResponse)

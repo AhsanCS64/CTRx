@@ -38,6 +38,7 @@ class RentalOfferResponse(BaseModel):
     updated_at: Optional[datetime]
     property_address: Optional[str] = None
     listing_title: Optional[str] = None
+    unit_number: Optional[str] = None
     landlord_name: Optional[str] = None
     tenant_name: Optional[str] = None
 

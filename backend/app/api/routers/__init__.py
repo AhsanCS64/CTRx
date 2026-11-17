@@ -10,6 +10,7 @@ _router_modules = [
     "app.api.routers.government",
     "app.api.routers.certificates",
     "app.api.routers.verification",
+    "app.api.routers.rental_identity_sharing",
     "app.api.routers.payments",
     "app.api.routers.admin",
     "app.api.routers.disputes",

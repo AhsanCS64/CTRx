@@ -18,8 +18,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
+from app.api.routers.properties import _require_vacancy
 from app.db.models.listings import Listing
 from app.db.models.properties import Property
+from app.db.models.property_units import PropertyUnit
 from app.db.models.rental_offers import RentalOffer
 from app.db.models.tenancies import Tenancy
 from app.db.models.landlord_profiles import LandlordProfile
@@ -66,6 +68,7 @@ def create_offer(
     listing = db.get(Listing, UUID(payload.listing_id))
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
+    _require_vacancy(db, listing.property_id, listing.unit_id)
     if listing.status != "available":
         raise HTTPException(status_code=409, detail="This listing is no longer available")
 
@@ -177,11 +180,14 @@ def landlord_respond(
     if payload.action == "accept":
         if not listing or listing.status != "available":
             raise HTTPException(status_code=409, detail="Listing is no longer available")
+        db.get(Property, listing.property_id, with_for_update=True)
+        _require_vacancy(db, listing.property_id, listing.unit_id)
         offer.status = "accepted"
         offer.landlord_response = payload.response_message or "Offer accepted."
         offer.responded_at = datetime.now(timezone.utc)
         tenancy = Tenancy(
             property_id=listing.property_id,
+            unit_id=listing.unit_id,
             tenant_id=offer.tenant_id,
             landlord_id=offer.landlord_id,
             start_date=offer.move_in_date,
@@ -251,12 +257,15 @@ def tenant_respond(
     if payload.action == "accept":
         if not listing or listing.status != "available":
             raise HTTPException(status_code=409, detail="Listing is no longer available")
+        db.get(Property, listing.property_id, with_for_update=True)
+        _require_vacancy(db, listing.property_id, listing.unit_id)
         offer.status = "accepted"
         offer.proposed_rent = offer.counter_rent or offer.proposed_rent
         offer.tenant_response = payload.response_message or "Counter-offer accepted."
         offer.responded_at = datetime.now(timezone.utc)
         tenancy = Tenancy(
             property_id=listing.property_id,
+            unit_id=listing.unit_id,
             tenant_id=offer.tenant_id,
             landlord_id=offer.landlord_id,
             start_date=offer.move_in_date,
@@ -303,6 +312,7 @@ def _offer_response(
     db: Session,
 ) -> dict:
     listing = db.get(Listing, offer.listing_id) if property_row else None
+    unit = db.get(PropertyUnit, listing.unit_id) if listing and listing.unit_id else None
     return {
         **{
             column.name: getattr(offer, column.name)
@@ -310,6 +320,7 @@ def _offer_response(
         },
         "property_address": property_row.address_line if property_row else None,
         "listing_title": listing.title if listing else None,
+        "unit_number": unit.unit_number if unit else None,
         "landlord_name": landlord_profile.full_name if landlord_profile else None,
         "tenant_name": tenant_profile.full_name if tenant_profile else None,
     }

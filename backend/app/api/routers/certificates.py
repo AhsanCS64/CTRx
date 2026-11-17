@@ -51,6 +51,7 @@ def list_certificates(current_user=Depends(get_current_user), db: Session = Depe
     return [
         {
             "id": str(cert.id),
+            "application_id": str(cert.application_id),
             "ric_number": cert.ric_number,
             "status": cert.status,
             "issued_at": cert.issued_at,
@@ -75,6 +76,7 @@ def list_my_certificates(current_user=Depends(get_current_user), db: Session = D
     return [
         {
             "id": str(cert.id),
+            "application_id": str(cert.application_id),
             "ric_number": cert.ric_number,
             "status": cert.status,
             "issued_at": cert.issued_at,

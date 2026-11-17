@@ -111,3 +111,26 @@ def test_non_owner_cannot_confirm_payment():
         payments.confirm_payment_receipt(db, uuid4(), payment_request.id)
 
     assert error.value.status_code == 403
+
+
+def test_rent_receipt_requires_an_owned_accepted_ledger_payment():
+    import base64
+
+    from fastapi import Response
+    from app.api.routers.rent import rent_receipt
+
+    invoice_id = uuid4()
+    user = SimpleNamespace(id=uuid4(), role="tenant")
+    entry = SimpleNamespace(id=uuid4(), amount=Decimal("6500.00"), period_month=date(2026, 11, 1), paid_on=date(2026, 11, 2))
+
+    def owned_payment(statement):
+        params = statement.compile().params.values()
+        assert user.id in params and invoice_id in params and "accepted" in params and "payment" in params
+        return SimpleNamespace(one_or_none=lambda: (entry, "Niribili, Savar", "5-Ka"))
+
+    result = rent_receipt(invoice_id, Response(), SimpleNamespace(execute=owned_payment), user)
+    assert result["filename"].endswith(".pdf")
+    assert base64.b64decode(result["content_base64"]).startswith(b"%PDF-")
+    with pytest.raises(HTTPException) as denied:
+        rent_receipt(invoice_id, Response(), SimpleNamespace(execute=lambda _: SimpleNamespace(one_or_none=lambda: None)), user)
+    assert denied.value.status_code == 404

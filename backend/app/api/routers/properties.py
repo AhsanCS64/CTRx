@@ -1,6 +1,6 @@
 """Property and listing endpoints for landlords and tenant discovery."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -18,6 +18,7 @@ from app.db.models.areas import Area
 from app.db.models.landlord_profiles import LandlordProfile
 from app.db.models.properties import Property
 from app.db.models.property_units import PropertyUnit
+from app.db.models.tenancies import Tenancy
 from app.db.models.users import User
 from app.schemas.properties import (
     ListingCreate,
@@ -30,6 +31,21 @@ from app.schemas.properties import (
 )
 
 router = APIRouter(prefix="/properties", tags=["properties"])
+
+
+def _reserved_property(property_id, unit_id=None):
+    today = datetime.now(timezone(timedelta(hours=6))).date()
+    match_space = True if unit_id is None else or_(unit_id == None, Tenancy.unit_id.is_(None), Tenancy.unit_id == unit_id)
+    return select(Tenancy.id).where(
+        match_space,
+        Tenancy.property_id == property_id,
+        or_(Tenancy.status == "active", Tenancy.end_date > today),
+    ).exists()
+
+
+def _require_vacancy(db: Session, property_id: UUID, unit_id=None) -> None:
+    if db.scalar(select(_reserved_property(property_id, unit_id))):
+        raise HTTPException(409, "This rental space has a current tenancy. Wait until the tenant moves out before listing it.")
 
 
 class ListingUpdate(BaseModel):
@@ -47,12 +63,16 @@ def _landlord(user: User) -> None:
 def list_my_properties(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _landlord(user)
     rows = db.execute(
-        select(Property, Area)
+        select(Property, Area, LandlordProfile.full_name)
         .join(Area, Area.id == Property.area_id)
+        .outerjoin(LandlordProfile, LandlordProfile.user_id == Property.landlord_id)
         .where(Property.landlord_id == user.id)
         .order_by(Property.created_at.desc())
     ).all()
-    return [_property_with_area(property_record, area) for property_record, area in rows]
+    return [
+        {**_property_with_area(property_record, area), "landlord_name": landlord_name}
+        for property_record, area, landlord_name in rows
+    ]
 
 
 def _property_with_area(property_record: Property, area: Area) -> dict:
@@ -70,7 +90,9 @@ def list_available_properties(db: Session = Depends(get_db)):
         select(Property, Area)
         .join(Listing, Listing.property_id == Property.id)
         .join(Area, Area.id == Property.area_id)
-        .where(Listing.status == "available")
+        .outerjoin(PropertyUnit, Listing.unit_id == PropertyUnit.id)
+        .where(Listing.status == "available", ~_reserved_property(Property.id, Listing.unit_id),
+               or_(Listing.unit_id.is_(None), PropertyUnit.status == "available"))
         .order_by(Property.created_at.desc())
     ).all()
     return [_property_with_area(property_record, area) for property_record, area in rows]
@@ -85,6 +107,7 @@ def list_available_listings(
 ):
     filters = [
         Listing.status == "available",
+        ~_reserved_property(Property.id, Listing.unit_id),
         or_(Listing.unit_id.is_(None), PropertyUnit.status == "available"),
     ]
     if area_id is not None:
@@ -148,11 +171,17 @@ def create_property(payload: PropertyCreate, db: Session = Depends(get_db), user
 def list_units(property_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _landlord(user)
     _owned_property(db, property_id, user)
-    return db.execute(
-        select(PropertyUnit)
+    units = db.execute(
+        select(PropertyUnit, _reserved_property(PropertyUnit.property_id, PropertyUnit.id).label("occupied"))
         .where(PropertyUnit.property_id == property_id)
         .order_by(PropertyUnit.floor_number, PropertyUnit.unit_number)
-    ).scalars().all()
+    ).all()
+    return [
+        PropertyUnitResponse.model_validate(unit).model_copy(update={
+            "listing_blocked": occupied or unit.status != "available",
+        })
+        for unit, occupied in units
+    ]
 
 
 @router.post("/{property_id}/units", response_model=PropertyUnitResponse, status_code=status.HTTP_201_CREATED)
@@ -212,8 +241,9 @@ def create_unit_listing(
     ).scalar_one_or_none()
     if not unit:
         raise HTTPException(status_code=404, detail="Apartment not found for this landlord")
-    if payload.status == "available" and unit.status != "available":
-        raise HTTPException(status_code=409, detail="Only available apartments can be published")
+    _require_vacancy(db, unit.property_id, unit.id)
+    if unit.status != "available":
+        raise HTTPException(409, "Only available apartments can be listed")
     live = db.execute(
         select(Listing).where(
             Listing.property_id == unit.property_id,
@@ -241,6 +271,7 @@ def create_unit_listing(
 def create_listing(property_id: str, payload: ListingCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _landlord(user)
     property_record = _owned_property(db, property_id, user, lock=True)
+    _require_vacancy(db, property_record.id)
     live = db.execute(select(Listing).where(Listing.property_id == property_id, Listing.status.in_(("draft", "available")))).scalars().first()
     if live:
         raise HTTPException(status_code=409, detail="This property already has a live listing")
@@ -271,9 +302,17 @@ def _owned_property(db: Session, property_id: str, user: User, lock: bool = Fals
 @router.get("/listings/mine", response_model=list[ListingResponse])
 def list_my_listings(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _landlord(user)
-    return db.execute(
-        select(Listing).join(Property, Listing.property_id == Property.id).where(Property.landlord_id == user.id).order_by(Listing.created_at.desc())
-    ).scalars().all()
+    rows = db.execute(
+        select(Listing, PropertyUnit.unit_number)
+        .join(Property, Listing.property_id == Property.id)
+        .outerjoin(PropertyUnit, PropertyUnit.id == Listing.unit_id)
+        .where(Property.landlord_id == user.id)
+        .order_by(Listing.created_at.desc())
+    ).all()
+    return [
+        ListingResponse.model_validate(listing).model_copy(update={"unit_number": unit_number})
+        for listing, unit_number in rows
+    ]
 
 
 @router.patch("/listings/{listing_id}", response_model=ListingResponse)
@@ -290,7 +329,10 @@ def update_listing(listing_id: UUID, payload: ListingUpdate, db: Session = Depen
     title = payload.title.strip()
     if not title:
         raise HTTPException(400, "Enter a listing title")
-    if payload.status == "available" and listing.unit_id:
+    if payload.status in {"available", "draft"}:
+        _owned_property(db, listing.property_id, user, lock=True)
+        _require_vacancy(db, listing.property_id, listing.unit_id)
+    if payload.status in {"available", "draft"} and listing.unit_id:
         unit = db.get(PropertyUnit, listing.unit_id)
         if unit is None or unit.status != "available":
             raise HTTPException(status_code=409, detail="Only available apartments can be published")

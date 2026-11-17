@@ -12,7 +12,7 @@ Business rules
 - All state-changing operations emit an audit log entry.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
@@ -161,7 +161,6 @@ def decide_payment_request(
 
     db.refresh(pr)
 
-    # Optional reliability hook – ignore if module not yet present.
     return pr
 
 
@@ -182,8 +181,9 @@ def submit_payment_report(
         raise HTTPException(status_code=403, detail="Not your payment request")
     if pr.status != "pending":
         raise HTTPException(status_code=409, detail="This payment request is not awaiting payment")
-    report_date = paid_on or date.today()
-    if report_date > date.today():
+    today = datetime.now(timezone(timedelta(hours=6))).date()
+    report_date = paid_on or today
+    if report_date > today:
         raise HTTPException(status_code=422, detail="Payment date cannot be in the future")
 
     pr.status = "submitted"
@@ -289,6 +289,16 @@ def create_correction(
     payload: CorrectionCreate,
 ) -> LedgerEntry:
     """Insert a correction ledger entry (append-only)."""
+    if role not in ("landlord", "admin"):
+        raise HTTPException(403, "Only the tenancy landlord or an administrator can correct a payment")
+    original = db.get(LedgerEntry, payload.corrects_entry_id) if payload.corrects_entry_id else None
+    if original is None or original.entry_type != "payment" or original.tenancy_id != payload.tenancy_id:
+        raise HTTPException(404, "Original payment not found")
+    tenancy = db.get(Tenancy, original.tenancy_id)
+    if tenancy is None or (role == "landlord" and tenancy.landlord_id != user_id):
+        raise HTTPException(404, "Original payment not found")
+    if payload.period_month != original.period_month or not payload.amount or not payload.correction_reason.strip():
+        raise HTTPException(422, "Use the original rent period, a non-zero amount, and a correction reason")
     entry = LedgerEntry(
         tenancy_id=payload.tenancy_id,
         entry_type="correction",
@@ -300,7 +310,11 @@ def create_correction(
         created_by=user_id,
     )
     db.add(entry)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as e:
+        db.rollback()
+        raise _map_integrity_error(e)
     log_action(
         db,
         action="ledger.correction.create",

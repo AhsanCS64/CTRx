@@ -42,6 +42,7 @@ class Tenancy(Base):
     property_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("properties.id", ondelete="RESTRICT"), nullable=False
     )
+    unit_id: Mapped[Optional[UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     tenant_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenant_profiles.user_id", ondelete="RESTRICT"), nullable=False
     )

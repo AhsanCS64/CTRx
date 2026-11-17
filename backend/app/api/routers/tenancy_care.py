@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.audit import log_action
 from app.db.models.properties import Property
+from app.db.models.property_units import PropertyUnit
 from app.db.models.tenancies import Tenancy
 from app.db.models.tenancy_care import TenancyCare
 from app.db.models.users import User
@@ -40,14 +41,15 @@ def serialize(record):
 @router.get("")
 def tenancies(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     rows = db.execute(
-        select(Tenancy, Property.address_line)
+        select(Tenancy, Property.address_line, PropertyUnit.unit_number)
         .join(Property, Tenancy.property_id == Property.id)
+        .outerjoin(PropertyUnit, PropertyUnit.id == Tenancy.unit_id)
         .where(scope(user))
         .order_by(Tenancy.start_date.desc())
     )
     return [
-        {"id": row.id, "address": address, "status": row.status, "start_date": row.start_date, "deposit": str(row.deposit)}
-        for row, address in rows
+        {"id": row.id, "address": address, "unit_number": unit_number, "status": row.status, "start_date": row.start_date, "deposit": str(row.deposit)}
+        for row, address, unit_number in rows
     ]
 
 

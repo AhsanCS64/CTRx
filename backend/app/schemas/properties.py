@@ -27,6 +27,7 @@ class PropertyCreate(PropertyBase):
     pass
 
 class PropertyResponse(PropertyBase):
+    landlord_name: str | None = None
     id: UUID
     landlord_id: UUID
     created_at: datetime
@@ -47,6 +48,7 @@ class ListingCreate(ListingBase):
     status: Literal["draft", "available"] = "draft"
 
 class ListingResponse(ListingBase):
+    unit_number: Optional[str] = None
     id: UUID
     unit_id: Optional[UUID] = None
     created_at: datetime
@@ -82,6 +84,7 @@ class PropertyUnitCreate(BaseModel):
 
 
 class PropertyUnitResponse(PropertyUnitCreate):
+    listing_blocked: bool = False
     id: UUID
     property_id: UUID
     created_at: datetime

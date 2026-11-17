@@ -776,7 +776,7 @@ button { font-family: inherit; }
   line-height: 1.15;
   color: var(--ink-900);
 }
-.stat-card span {
+.stat-card span:not(.status) {
   display: block;
   margin-top: 2px;
   font-size: 0.79rem;
@@ -1593,41 +1593,77 @@ input::file-selector-button {
 .repair-history strong { text-transform: capitalize; }
 .repair-history small { color: var(--ink-600); }
 
+.application-progress { container-type: inline-size; }
 .application-progress ol {
+  --step-dot: clamp(3rem, 8cqi, 4.6rem);
+  --step-bar: 4px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: .65rem;
   margin: 0;
-  padding: 0;
+  padding: 18px 0 16px;
   list-style: none;
 }
-.application-progress li {
-  display: grid;
-  align-content: start;
-  justify-items: start;
-  gap: .35rem;
-  padding: .85rem;
-  border: 1px solid var(--ink-200);
-  border-radius: 12px;
-  background: var(--surface-muted);
+.application-progress li { position: relative; min-width: 0; }
+.application-progress li:not(:last-child)::after {
+  --line-start: 0% 100%;
+  content: "";
+  position: absolute;
+  inset-block-start: calc((var(--step-dot) - var(--step-bar)) / 2);
+  inset-inline-start: calc(50% + var(--step-dot) / 2 + 7px);
+  inline-size: calc(100% - var(--step-dot) - 14px);
+  block-size: var(--step-bar);
+  border-radius: 99px;
+  background: linear-gradient(var(--step-connector, transparent), var(--step-connector, transparent)) 0 0 / 100% 100% no-repeat var(--ink-200);
+  pointer-events: none;
 }
-.application-progress li[data-state="current"] { border-color: var(--teal-500); background: var(--teal-50); }
-.application-progress li[data-state="rejected"] { border-color: #d95766; }
-.application-progress small { color: var(--ink-600); }
+.application-progress li[data-state="done"]:has(+ li:not([data-state="waiting"]))::after {
+  --step-connector: var(--teal-500);
+}
 .progress-marker {
   display: grid;
   place-items: center;
-  width: 1.85rem;
-  height: 1.85rem;
+  width: var(--step-dot);
+  height: var(--step-dot);
+  border: 4px solid transparent;
   border-radius: 50%;
   background: var(--ink-100);
+  color: var(--ink-700);
+  font-size: clamp(1.2rem, 3cqi, 1.8rem);
   font-weight: 700;
 }
-.application-progress li:is([data-state="done"], [data-state="current"]) .progress-marker { background: var(--teal-600); color: white; }
+.progress-marker svg { width: 50%; height: 50%; stroke-width: 2.8; }
+.application-progress li[data-state="done"] .progress-marker {
+  background: var(--teal-600);
+  color: #fff;
+}
+.application-progress li[data-state="current"] .progress-marker {
+  border-color: var(--teal-500);
+  background: var(--surface);
+  color: var(--teal-700);
+  transform: scale(1.1);
+}
+.application-progress li[data-state="rejected"] .progress-marker {
+  border-color: #d95766;
+  background: #3d2528;
+  color: #f5b5bf;
+}
 .application-progress .timeline-rejection { margin-top: .75rem; }
-
-@media (max-width: 620px) {
-  .application-progress ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (prefers-reduced-motion: no-preference) {
+  .application-progress li[data-state="done"]:has(+ li[data-state="current"])::after {
+    animation: ric-line-fill 550ms ease-out both;
+  }
+}
+@keyframes ric-line-fill {
+  from { background-size: var(--line-start); }
+  to { background-size: 100% 100%; }
+}
+@container (max-width: 420px) {
+  .application-progress ol { --step-dot: clamp(2rem, 12cqi, 3rem); --step-bar: 3px; }
+  .application-progress li:not(:last-child)::after {
+    inset-inline-start: calc(50% + var(--step-dot) / 2 + 4px);
+    inline-size: max(0px, calc(100% - var(--step-dot) - 8px));
+  }
+  .application-progress .progress-marker { border-width: 3px; }
 }
 .navigation-group { padding: 22px 14px 7px; font-size: .65rem; letter-spacing: .14em; text-transform: uppercase; color: #b3ccc6; font-weight: 700; }
 .sidebar-footer .profile-chip { display: none; }
@@ -1828,7 +1864,7 @@ progress { width: 100%; accent-color: var(--teal-600); }
 .navigation-section summary { list-style: none; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; color: #c1d1ca; font-size: .72rem; letter-spacing: .06em; font-weight: 600; cursor: pointer; border-radius: 8px; }
 .navigation-section summary::-webkit-details-marker { display: none; }
 .navigation-section summary:hover { color: white; background: #ffffff09; }
-.navigation-section:not([open]) summary span { transform: rotate(-90deg); }
+
 .navigation-section .nav-item { width: 100%; }
 .app-shell .nav-item.active { background: #ffffff14; box-shadow: inset 3px 0 #e5eccc; }
 .app-shell .nav-item.active svg { color: #e5eccc; }
@@ -1984,9 +2020,17 @@ button { touch-action: manipulation; }
 }
 .navigation-section > summary::-webkit-details-marker { display: none; }
 .navigation-section > summary:hover { color: #fff; background: rgba(255, 255, 255, .05); }
-.navigation-section > summary span { transition: transform var(--fast); }
-.navigation-section[open] > summary span { transform: rotate(180deg); }
-.sidebar nav { gap: 2px; }
+.navigation-section > summary svg { flex: none; color: #d9e9e1; }
+.navigation-section:not([open]) > summary svg { transform: rotate(-90deg); }
+.sidebar nav {
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.sidebar-footer { flex-shrink: 0; }
+.current-home-stats { margin: 0; }
+.current-home-stats .status { white-space: normal; }
 .nav-item { min-height: 42px; border-radius: 9px; font-size: .84rem; }
 .nav-item.active {
   background: rgba(172, 226, 199, .15);

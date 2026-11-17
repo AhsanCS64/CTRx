@@ -53,6 +53,9 @@ class TenancyResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    tenant_name: Optional[str] = None
+    landlord_name: Optional[str] = None
+    unit_number: Optional[str] = None
     property_address: Optional[str] = None
     property_type: Optional[str] = None
 

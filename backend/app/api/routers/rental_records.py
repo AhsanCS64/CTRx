@@ -42,10 +42,11 @@ def _audit(db, user, action, kind, record_id):
 
 def _tenancy(db, user, tenancy_id):
     return _one(db, """
-        SELECT t.id, t.tenant_id, t.landlord_id, p.address_line, t.start_date,
+        SELECT t.id, t.tenant_id, t.landlord_id, p.address_line, u.unit_number, t.start_date,
                t.monthly_rent, t.deposit, t.rent_due_day, t.status,
                tp.full_name AS tenant_name, lp.full_name AS landlord_name
         FROM tenancies t JOIN properties p ON p.id = t.property_id
+        LEFT JOIN property_units u ON u.id = t.unit_id
         JOIN tenant_profiles tp ON tp.user_id = t.tenant_id
         JOIN landlord_profiles lp ON lp.user_id = t.landlord_id
         WHERE t.id = :id AND :user IN (t.tenant_id, t.landlord_id)
@@ -75,9 +76,12 @@ def _pdf(title, intro, headings, rows, filename):
 @router.get("/tenancies")
 def tenancies(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return _rows(db, """
-        SELECT t.id, p.address_line, t.status, t.start_date, l.created_at AS lease_created_at
+        SELECT t.id, p.address_line, u.unit_number, t.status, t.start_date, l.created_at AS lease_created_at, t.end_date, t.monthly_rent, tp.full_name AS tenant_name, lp.full_name AS landlord_name
         FROM tenancies t JOIN properties p ON p.id = t.property_id
+        LEFT JOIN property_units u ON u.id = t.unit_id
         LEFT JOIN lease_agreements l ON l.tenancy_id = t.id
+        LEFT JOIN tenant_profiles tp ON tp.user_id = t.tenant_id
+        LEFT JOIN landlord_profiles lp ON lp.user_id = t.landlord_id
         WHERE :user IN (t.tenant_id, t.landlord_id) ORDER BY t.start_date DESC
     """, user=user.id)
 
@@ -126,10 +130,13 @@ def lease_pdf(tenancy_id: UUID, db: Session = Depends(get_db), user: User = Depe
     agreement = lease(tenancy_id, db, user)
     if agreement is None:
         raise HTTPException(404, "Prepare the lease first")
+    tenancy = _tenancy(db, user, tenancy_id)
+    apartment = [f"Apartment: {tenancy['unit_number']}"] if tenancy["unit_number"] and not agreement["terms"].get("registered_apartment") else []
     tenant_ack = agreement["tenant_acknowledged_at"]
     landlord_ack = agreement["landlord_acknowledged_at"]
     return _pdf("Lease agreement", [
         "Acknowledged by both parties" if tenant_ack and landlord_ack else "Draft awaiting acknowledgement",
+        *apartment,
         f"Tenant acknowledged: {tenant_ack or 'Pending'}", f"Landlord acknowledged: {landlord_ack or 'Pending'}",
     ], ["Term", "Recorded value"], [
         [key.replace("_", " ").title(), value] for key, value in agreement["terms"].items()
@@ -153,7 +160,7 @@ def statement(tenancy_id: UUID, start: date, end: date, db: Session = Depends(ge
           AND status IN ('pending', 'submitted')
         ORDER BY period_month, id
     """, **params)
-    return {"address": tenancy["address_line"], "ledger": entries, "invoices": invoices,
+    return {"address": tenancy["address_line"], "unit_number": tenancy["unit_number"], "ledger": entries, "invoices": invoices,
             "posted_total": sum((row["amount"] for row in entries), 0),
             "outstanding_total": sum((row["amount"] for row in invoices), 0)}
 
@@ -164,7 +171,8 @@ def statement_pdf(tenancy_id: UUID, start: date, end: date, db: Session = Depend
     rows = [[row["period_month"], row["entry_type"], row["amount"], row["reason"] or row["paid_on"]]
             for row in data["ledger"]]
     rows.extend([row["period_month"], "Invoice", row["amount"], row["status"]] for row in data["invoices"])
-    return _pdf("Rent statement", [data["address"], f"Rent periods: {start:%Y-%m} to {end:%Y-%m}",
+    residence = data["address"] + (f" - Apartment {data['unit_number']}" if data["unit_number"] else "")
+    return _pdf("Rent statement", [residence, f"Rent periods: {start:%Y-%m} to {end:%Y-%m}",
                 f"Posted total: BDT {data['posted_total']}", f"Outstanding: BDT {data['outstanding_total']}"],
                 ["Rent period", "Record", "Amount (BDT)", "Details"], rows, f"rent-statement-{start:%Y-%m}.pdf")
 

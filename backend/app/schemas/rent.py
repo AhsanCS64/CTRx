@@ -20,6 +20,10 @@ class RentInvoice(BaseModel):
     paid_on: date
     payment_method: Optional[str] = None
     note: Optional[str] = None
+    tenant_name: Optional[str] = None
+    landlord_name: Optional[str] = None
+    unit_number: Optional[str] = None
+    property_address: Optional[str] = None
 
 
 class RentInvoiceCreate(BaseModel):
@@ -32,6 +36,7 @@ class RentOverview(BaseModel):
     active: bool
     tenancy_id: Optional[UUID] = None
     tenant_id: Optional[UUID] = None
+    unit_number: Optional[str] = None
     property_address: Optional[str] = None
     property_type: Optional[str] = None
     monthly_rent: Optional[Decimal] = None
@@ -49,12 +54,15 @@ class LandlordRentRow(BaseModel):
     tenancy_id: UUID
     tenant_id: UUID
     tenant_name: Optional[str] = None
+    unit_number: Optional[str] = None
     property_address: Optional[str] = None
     monthly_rent: Decimal
     rent_due_day: int
     period_month: date
     invoice_id: Optional[UUID] = None
     invoice_status: str = "none"
+    missed_recorded: bool = False
+    can_record_missed: bool = False
     payment_method: Optional[str] = None
     payment_note: Optional[str] = None
     paid_on: Optional[date] = None

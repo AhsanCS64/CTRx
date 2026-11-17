@@ -5,7 +5,7 @@ type Kind = 'move_in' | 'move_out' | 'maintenance' | 'deposit';
 type Photo = { taken_on: string; data: string };
 type Room = { name: string; check: string; condition: string; notes: string };
 type Deduction = { description: string; amount: string; evidence: string; photo?: Photo };
-type Home = { id: string; address: string; status: string; start_date: string; deposit: string };
+type Home = { unit_number?: string | null; id: string; address: string; status: string; start_date: string; deposit: string };
 type Case = { id: string; entity_type: string; entity_id: string; reason: string };
 type RecordBase = { id: string; created_at: string; case_ids?: string[] };
 type Inspection = RecordBase & { kind: 'move_in' | 'move_out'; inspected_on: string; rooms: Room[]; meters: string; keys: string; photos: Photo[]; acknowledgements: Record<string, string> };
@@ -128,7 +128,7 @@ function CreateForm({ kind, home, busy, save }: { kind: Kind; home: Home; busy: 
 
 function downloadStatement(home: Home, record: Settlement) {
   const lines = [
-    'CTRx deposit closing statement', home.address, 'Tenancy reference ' + home.id,
+    'CTRx deposit closing statement', [home.address, home.unit_number && `Apartment ${home.unit_number}`].filter(Boolean).join(' · '), 'Tenancy reference ' + home.id,
     'Statement recorded ' + dateTime(record.created_at), '',
     'Original deposit ' + money(record.original),
     ...record.deductions.flatMap((item, index) => [
@@ -253,7 +253,7 @@ export function TenancyCare({ request, role, openCase }: { request: Request; rol
     {homes?.length === 0 && <p>Confirmed tenancies will appear here.</p>}
     {home && <>
       <label>Tenancy<select value={selected} onChange={event => setSelected(event.target.value)}>
-        {homes?.map(item => <option key={item.id} value={item.id}>{item.address} · {item.start_date} · {item.status}</option>)}
+        {homes?.map(item => <option key={item.id} value={item.id}>{item.address}{item.unit_number ? ` · Apartment ${item.unit_number}` : ''} · {item.start_date} · {item.status}</option>)}
       </select></label>
       <div className="care-tabs" aria-label="Tenancy record types">{(Object.keys(labels) as Kind[]).map(item =>
         <button className={kind === item ? 'primary' : 'secondary'} aria-pressed={kind === item} key={item} onClick={() => setKind(item)}>{labels[item]}</button>

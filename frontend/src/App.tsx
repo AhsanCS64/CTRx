@@ -1,3 +1,9 @@
+import { banglaNavigation } from './workspaceLanguage';
+import { ExportPanel, type ExportDataset } from './ExportPanel';
+import { TenancyFeedback } from './TenancyFeedback';
+import { Button } from './Button';
+import { ShareRentalIdentity, VerifiedRentalIdentity } from './RentalIdentityShare';
+import { WorkspaceSearch } from './WorkspaceSearch';
 import { EngineerProfile } from './EngineerProfile';
 import engineerPhoto from '../../Assets/Developer/kushal.jpg';
 import logoImage from '../../Assets/Logo/logo_ctrx.png';
@@ -6,17 +12,17 @@ import { RentalTools } from './RentalTools';
 import { RentalRecords } from './RentalRecords';
 import { SupportCenter } from './SupportCenter';
 import { TrustHistory } from './TrustHistory';
-import { FormEvent, ReactElement, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, ReactElement, useEffect, useId, useMemo, useRef, useState } from 'react';
 
 type Role = 'tenant' | 'landlord' | 'government' | 'admin';
 type User = { id: string; email: string; role: Role; is_active: boolean; created_at: string };
 type Area = { id: number; division: string; division_code: string; district: string; district_code: string; name: string; upazila_code: string };
 type Application = {
-  id: string; applicant_name: string; email?: string; status: string; area_name?: string;
+  id: string; applicant_name: string; full_name?: string; email?: string; status: string; area_name?: string;
   area_id?: number; submitted_at: string; identity_last4?: string; rejection_reason?: string;
-  local_note?: string; central_note?: string;
+  local_note?: string; central_note?: string; local_reviewed_at?: string | null; central_reviewed_at?: string | null;
 };
-type Certificate = { id: string; ric_number: string; status: string; issued_at: string; applicant_name: string; area_name: string };
+type Certificate = { id: string; application_id?: string; ric_number: string; status: string; issued_at: string; applicant_name: string; area_name: string };
 type GovernmentOverviewData = {
   official: { full_name: string; designation?: string | null; level: 'local' | 'central'; area_name?: string | null; district?: string | null; division?: string | null };
   status_counts: Record<string, number>;
@@ -24,17 +30,17 @@ type GovernmentOverviewData = {
   ready_to_issue_count: number;
   issued_certificate_count: number;
 };
-type Property = { id: string; area_id: number; area_name?: string; district?: string; division?: string; address_line: string; property_type: string; monthly_rent: number; floor_area_sqft: number; bedrooms: number; bathrooms: number; floor_number: number; available_from: string; landlord_id: string; created_at: string; updated_at: string };
-type Listing = { id: string; property_id: string; unit_id?: string; status: string; title?: string; description?: string; published_at?: string; created_at: string; updated_at: string };
-type AvailableListing = Listing & { area_id: number; area_name: string; district: string; division: string; property_address: string; property_type: string; monthly_rent: number; floor_area_sqft: number; bedrooms: number; bathrooms: number; floor_number: number; unit_number?: string };
+type Property = { id: string; landlord_name?: string | null; area_id: number; area_name?: string; district?: string; division?: string; address_line: string; property_type: string; monthly_rent: number; floor_area_sqft: number; bedrooms: number; bathrooms: number; floor_number: number; available_from: string; landlord_id: string; created_at: string; updated_at: string };
+type Listing = { unit_number?: string | null; id: string; property_id: string; unit_id?: string; status: string; title?: string; description?: string; published_at?: string; created_at: string; updated_at: string };
+type AvailableListing = Omit<Listing, 'unit_number'> & { area_id: number; area_name: string; district: string; division: string; property_address: string; property_type: string; monthly_rent: number; floor_area_sqft: number; bedrooms: number; bathrooms: number; floor_number: number; unit_number?: string };
 type Viewing = { id: string; tenant_id: string; listing_id: string; proposed_time: string; message?: string; status: string; expires_at: string; confirmed_time?: string; alternative_time?: string; created_at: string; updated_at: string; property_address?: string; area_name?: string; district?: string; division?: string; property_type?: string; unit_number?: string; monthly_rent?: number; listing_title?: string; landlord_name?: string; tenant_name?: string };
-type Tenancy = { id: string; property_id: string; tenant_id: string; landlord_id: string; start_date: string; end_date?: string; rent: number; deposit: number; rent_due_day: number; status: string; created_at: string; updated_at: string; property_address?: string; property_type?: string };
-type RentalOffer = { id: string; listing_id: string; tenant_id: string; landlord_id: string; proposed_rent: number; counter_rent?: number; status: string; move_in_date: string; message?: string; landlord_response?: string; tenant_response?: string; expires_at: string; responded_at?: string; created_at: string; updated_at?: string; property_address?: string; listing_title?: string; landlord_name?: string; tenant_name?: string };
-type RentInvoice = { id: string; amount: number; status: string; period_month: string; description?: string; created_at: string; paid_on: string; payment_method?: string; note?: string };
-type RentOverview = { active: boolean; tenancy_id?: string; tenant_id?: string; property_address?: string; property_type?: string; monthly_rent?: number; deposit?: number; rent_due_day?: number; start_date?: string; period_month?: string; invoice?: RentInvoice | null; paid_current_period?: boolean; total_paid?: number; outstanding?: number };
-type LandlordRentRow = { tenancy_id: string; tenant_id: string; tenant_name?: string; property_address?: string; monthly_rent: number; rent_due_day: number; period_month: string; invoice_id?: string; invoice_status: string; payment_method?: string; payment_note?: string; paid_on?: string };
+type Tenancy = { unit_number?: string | null; id: string; tenant_name?: string | null; landlord_name?: string | null; property_id: string; tenant_id: string; landlord_id: string; start_date: string; end_date?: string; rent: number; deposit: number; rent_due_day: number; status: string; created_at: string; updated_at: string; property_address?: string; property_type?: string };
+type RentalOffer = { unit_number?: string | null; id: string; listing_id: string; tenant_id: string; landlord_id: string; proposed_rent: number; counter_rent?: number; status: string; move_in_date: string; message?: string; landlord_response?: string; tenant_response?: string; expires_at: string; responded_at?: string; created_at: string; updated_at?: string; property_address?: string; listing_title?: string; landlord_name?: string; tenant_name?: string };
+type RentInvoice = { unit_number?: string | null; id: string; tenant_name?: string | null; landlord_name?: string | null; property_address?: string | null; amount: number; status: string; period_month: string; description?: string; created_at: string; paid_on: string; payment_method?: string; note?: string };
+type RentOverview = { unit_number?: string | null; active: boolean; tenancy_id?: string; tenant_id?: string; property_address?: string; property_type?: string; monthly_rent?: number; deposit?: number; rent_due_day?: number; start_date?: string; period_month?: string; invoice?: RentInvoice | null; paid_current_period?: boolean; total_paid?: number; outstanding?: number };
+type LandlordRentRow = { unit_number?: string | null; missed_recorded?: boolean; can_record_missed?: boolean; tenancy_id: string; tenant_id: string; tenant_name?: string; property_address?: string; monthly_rent: number; rent_due_day: number; period_month: string; invoice_id?: string; invoice_status: string; payment_method?: string; payment_note?: string; paid_on?: string };
 type RentPaymentReport = { payment_method: string; note?: string };
-type PropertyUnit = { id: string; property_id: string; unit_number: string; floor_number: number; monthly_rent: number; floor_area_sqft: number; bedrooms: number; bathrooms: number; available_from: string; status: string; created_at: string; updated_at: string };
+type PropertyUnit = { id: string; listing_blocked?: boolean; property_id: string; unit_number: string; floor_number: number; monthly_rent: number; floor_area_sqft: number; bedrooms: number; bathrooms: number; available_from: string; status: string; created_at: string; updated_at: string };
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || window.location.origin).replace(/\/api\/?$/, '');
 const token = () => localStorage.getItem('access_token') || '';
@@ -116,6 +122,7 @@ function App() {
   const [rentalOffers, setRentalOffers] = useState<RentalOffer[]>([]);
   const [landlordRentalOffers, setLandlordRentalOffers] = useState<RentalOffer[]>([]);
   const [rentOverview, setRentOverview] = useState<RentOverview | null>(null);
+  const [rentLoading, setRentLoading] = useState(false);
   const [landlordRent, setLandlordRent] = useState<LandlordRentRow[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const certificateRequestId = useRef(0);
@@ -202,7 +209,10 @@ function App() {
     try { setLandlordRentalOffers(await request<RentalOffer[]>('/rental_offers/landlord')); } catch (reason) { setError(getMessage(reason)); }
   }
   async function loadRentOverview() {
-    try { setRentOverview(await request<RentOverview>('/rent/overview')); } catch (reason) { setError(getMessage(reason)); }
+    setRentLoading(true);
+    try { setRentOverview(await request<RentOverview>('/rent/overview')); }
+    catch (reason) { setError(getMessage(reason)); }
+    finally { setRentLoading(false); }
   }
   async function loadLandlordRent() {
     try { setLandlordRent(await request<LandlordRentRow[]>('/rent/tenancies')); } catch (reason) { setError(getMessage(reason)); }
@@ -212,6 +222,16 @@ function App() {
     try { await request(`/rent/invoices/${invoiceId}/pay`, { method: 'POST', body: JSON.stringify(report) }); setNotice('Payment reported. Your landlord must confirm receipt before it is recorded as paid.'); await loadRentOverview(); }
     catch (reason) { setError(getMessage(reason)); } finally { setBusy(false); }
   }
+  async function recordMissedRent(invoiceId: string) {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await request(`/rent/invoices/${invoiceId}/missed`, { method: 'POST' });
+      setNotice('Missed rent recorded. The tenant has been notified.');
+      await loadLandlordRent();
+    } catch (reason) { setError(getMessage(reason)); }
+    finally { setBusy(false); }
+  }
+
   async function confirmRentPayment(invoiceId: string) {
     setBusy(true); setError(''); setNotice('');
     try { await request(`/rent/invoices/${invoiceId}/confirm`, { method: 'POST' }); setNotice('Payment confirmed and added to the rent ledger.'); await loadLandlordRent(); }
@@ -432,7 +452,7 @@ function App() {
   if (user) {
     return <Workspace user={user} workspace={workspace} setWorkspace={setWorkspace} applications={applications}
       selectedApp={selectedApp} certificates={certificates} areas={areas} pendingCount={pendingCount} busy={busy} error={error} notice={notice}
-      properties={properties} listings={listings} availableListings={availableListings} viewings={viewings} landlordViewings={landlordViewings} tenancies={tenancies} rentalOffers={rentalOffers} landlordRentalOffers={landlordRentalOffers} rentOverview={rentOverview} landlordRent={landlordRent}
+      properties={properties} listings={listings} availableListings={availableListings} viewings={viewings} landlordViewings={landlordViewings} tenancies={tenancies} rentalOffers={rentalOffers} landlordRentalOffers={landlordRentalOffers} rentOverview={rentOverview} rentLoading={rentLoading} landlordRent={landlordRent}
       onLogout={logout} onApply={submitApplication} onRefresh={user.role === 'tenant' ? loadTenantApplications : loadQueue}
       onSelectApplication={(id) => setSelectedApp(id ? applications.find((a) => a.id === id) || null : null)} onReview={reviewApplication} onIssue={issueCertificate} onDownloadCertificate={downloadCertificate} onCreateOfficial={async (payload) => {
         setBusy(true); setError(''); setNotice('');
@@ -455,16 +475,23 @@ function App() {
           await loadLandlordListings(); setWorkspace('listings');
         }
         catch (reason) { setError(getMessage(reason)); } finally { setBusy(false); }
-      }} onRequestViewing={submitViewing} onEndTenancy={endTenancy} onRelocate={submitRelocation} onRefreshListings={loadLandlordListings} onUpdateViewing={updateViewingStatus} onCreateRentalOffer={createRentalOffer} onRefreshTenantRentalOffers={loadTenantRentalOffers} onRespondToRentalOffer={respondToRentalOffer} onRefreshLandlordRentalOffers={loadLandlordRentalOffers} onTenantRespondToRentalOffer={tenantRespondToRentalOffer} onPayRent={payRent} onConfirmRentPayment={confirmRentPayment} onGenerateRent={generateRent} onRefreshRent={user.role === 'landlord' ? loadLandlordRent : loadRentOverview} />; 
+      }} onRequestViewing={submitViewing} onEndTenancy={endTenancy} onRelocate={submitRelocation} onRefreshListings={loadLandlordListings} onUpdateViewing={updateViewingStatus} onCreateRentalOffer={createRentalOffer} onRefreshTenantRentalOffers={loadTenantRentalOffers} onRespondToRentalOffer={respondToRentalOffer} onRefreshLandlordRentalOffers={loadLandlordRentalOffers} onTenantRespondToRentalOffer={tenantRespondToRentalOffer} onPayRent={payRent} onConfirmRentPayment={confirmRentPayment} onRecordMissedRent={recordMissedRent} onGenerateRent={generateRent} onRefreshRent={user.role === 'landlord' ? loadLandlordRent : loadRentOverview} />;
   }
 
   if (screen === 'home') return <Landing onLogin={(role) => { setLoginRole(role); setScreen('login'); }} onRegister={() => { setRegisterRole('tenant'); setScreen('register'); }} />;
   return <AuthScreen screen={screen} loginRole={loginRole} registerRole={registerRole} resetToken={resetToken} busy={busy} error={error} notice={notice}
-    onBack={() => { setError(''); setScreen('home'); }} onLogin={submitLogin} onRegister={submitRegistration}
+    onBack={() => { setError(''); setScreen('home'); }} onLogin={submitLogin} onLoginRole={(role) => { setLoginRole(role); setError(''); setNotice(''); }} onRegister={submitRegistration}
     onRegisterRole={setRegisterRole} onBootstrap={submitBootstrapAdmin} onDemoPasswordReset={submitDemoPasswordReset} onPasswordReset={submitPasswordReset} onSwitch={(next) => { setError(''); setNotice(''); setScreen(next); }} />;
 }
 
 function Landing({ onLogin, onRegister }: { onLogin: (role: Role) => void; onRegister: () => void }) {
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  useEffect(() => {
+    const update = () => setShowBackToTop(window.scrollY > 650);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, []);
   const [activeSection, setActiveSection] = useState(() => window.location.hash);
   useEffect(() => {
     const updateSection = () => setActiveSection(window.location.hash);
@@ -483,8 +510,8 @@ function Landing({ onLogin, onRegister }: { onLogin: (role: Role) => void; onReg
     <header className="cl-header"><Brand /><nav aria-label="Main navigation">{[['#platform-features', 'Platform'], ['#rental-identity', 'Rental identity'], ['#engineer', 'About']].map(([href, label]) => (
         <a key={href} href={href} aria-current={activeSection === href ? 'location' : undefined}>{label}</a>
       ))}</nav><div className="cl-actions">
-      <details className="signin-menu"><summary>Sign in</summary><div>{(['tenant', 'landlord', 'government', 'admin'] as Role[]).map(role => <button key={role} onClick={() => onLogin(role)}><Icon name={role === 'tenant' ? 'user' : role === 'landlord' ? 'building' : role === 'admin' ? 'key' : 'shield'} />{role === 'government' ? 'Government official' : role === 'admin' ? 'Administrator' : formatLabel(role)}</button>)}</div></details>
-      <button className="primary" onClick={onRegister}>Create account</button>
+      <details className="signin-menu"><summary>Sign in</summary><div>{(['tenant', 'landlord'] as Role[]).map(role => <button key={role} onClick={() => onLogin(role)}><Icon name={role === 'tenant' ? 'user' : 'building'} />{formatLabel(role)}</button>)}</div></details>
+      <Button className="primary" onClick={onRegister}>Create account</Button>
 
     </div></header>
     <main id="main-content">
@@ -492,7 +519,7 @@ function Landing({ onLogin, onRegister }: { onLogin: (role: Role) => void; onReg
         <div className="cl-intro"><span className="cl-label">Central Tenant Records</span>
           <h1>Renting as a bachelor? <em>Let your record speak.</em></h1>
           <p>CTRx helps bachelors in Bangladesh show landlords who they are and how they rent, with a verified identity and a rental history they choose to share.</p>
-          <div className="cl-actions"><button className="primary" onClick={onRegister}>Create account</button><a href="#platform-features">Explore the platform <span aria-hidden="true">↓</span></a></div>
+          <div className="cl-actions"><Button className="primary" onClick={onRegister}>Create account</Button><a href="#platform-features">Explore the platform <span aria-hidden="true">↓</span></a></div>
         </div>
         </section>
       <section className="cl-mission" aria-labelledby="cl-mission-title">
@@ -517,23 +544,24 @@ function Landing({ onLogin, onRegister }: { onLogin: (role: Role) => void; onReg
         ].map(([icon, title, description]) => <article key={title}><Icon name={icon} /><h3>{title}</h3><p>{description}</p></article>)}</div>
       </section>
       <div className="cl-about"><EngineerProfile photo={engineerPhoto} /></div>
-      <section className="cl-closing"><div><h2>Start your rental record</h2><p>Create a tenant or landlord account.</p></div><button className="primary" onClick={onRegister}>Create account</button></section>
+      <section className="cl-closing"><div><h2>Start your rental record</h2><p>Create a tenant or landlord account.</p></div><Button className="primary" onClick={onRegister}>Create account</Button></section>
     </main>
-    <footer className="cl-footer"><span>© {new Date().getFullYear()} Central Tenant Records</span><a href="#top">Back to top ↑</a></footer>
+    <footer className="cl-footer"><span>© {new Date().getFullYear()} CTRx. All rights reserved.</span><div className="cl-footer-actions"><details className="cl-staff-access"><summary><Icon name="key" /> Staff portal</summary><div><button type="button" onClick={() => onLogin('government')}>Government official</button><button type="button" onClick={() => onLogin('admin')}>Administrator</button></div></details></div></footer>
+    <a className={`cl-back-top${showBackToTop ? ' is-visible' : ''}`} href="#top"><span aria-hidden="true">↑</span> Back to top</a>
   </div>;
 }
 
 function navigationGroup(key: string) {
-  if (['overview', 'inbox'].includes(key)) return '1 Workspace';
+  if (['overview', 'inbox', 'exports'].includes(key)) return '1 Workspace';
   if (['browse', 'properties', 'units', 'listings', 'viewings', 'offers'].includes(key)) return '2 Homes & discovery';
-  if (['rent', 'care', 'tenancies', 'leases', 'statements'].includes(key)) return '3 My rental';
+  if (['rent', 'care', 'tenancies', 'leases', 'statements', 'feedback'].includes(key)) return '3 My rental';
   if (['apply', 'applications', 'relocate', 'certificates', 'queue'].includes(key)) return '4 Identity & certificates';
   return '5 Resources';
 }
 
 function Workspace(props: {
   user: User; workspace: string; setWorkspace: (value: string) => void; applications: Application[]; selectedApp: Application | null; certificates: Certificate[];
-  areas: Area[]; properties: Property[]; listings: Listing[]; availableListings: AvailableListing[]; viewings: Viewing[]; landlordViewings: Viewing[]; tenancies: Tenancy[]; rentalOffers: RentalOffer[]; landlordRentalOffers: RentalOffer[]; rentOverview: RentOverview | null; landlordRent: LandlordRentRow[]; pendingCount: number; busy: boolean; error: string; notice: string; onLogout: () => void;
+  areas: Area[]; properties: Property[]; listings: Listing[]; availableListings: AvailableListing[]; viewings: Viewing[]; landlordViewings: Viewing[]; tenancies: Tenancy[]; rentalOffers: RentalOffer[]; landlordRentalOffers: RentalOffer[]; rentOverview: RentOverview | null; rentLoading: boolean; landlordRent: LandlordRentRow[]; pendingCount: number; busy: boolean; error: string; notice: string; onLogout: () => void;
   onApply: (event: FormEvent<HTMLFormElement>) => void; onRefresh: () => void; onSelectApplication: (id: string | null) => void; onReview: (id: string, action: 'forward' | 'reject' | 'approve' | 'return_to_local', note?: string) => void;
   onIssue: (id: string) => void; onDownloadCertificate: (id: string) => void; onCreateOfficial: (payload: { email: string; password: string; full_name: string; level: string; area_id?: number }) => void;
   onCreateAdmin: (payload: { email: string; password: string; full_name: string }) => void;
@@ -551,10 +579,38 @@ function Workspace(props: {
   onTenantRespondToRentalOffer: (offerId: string, action: 'accept' | 'counter' | 'withdraw', counterRent?: number, responseMessage?: string) => void;
   onPayRent: (invoiceId: string, report: RentPaymentReport) => void;
   onConfirmRentPayment: (invoiceId: string) => void;
+  onRecordMissedRent: (invoiceId: string) => void;
   onGenerateRent: (tenancyId: string) => void;
   onRefreshRent: () => void;
 }) {
   const { user, workspace, setWorkspace, onSelectApplication, selectedApp } = props;
+  const [bangla, setBangla] = useState(() => localStorage.getItem('ctrx-workspace-language') === 'bn');
+  const [recordTarget, setRecordTarget] = useState<{ id: string; page: string } | null>(null);
+  useEffect(() => {
+    if (!recordTarget || workspace !== recordTarget.page) return;
+    const target = document.getElementById(`record-${recordTarget.id}`);
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: 'nearest' });
+  }, [recordTarget, workspace]);
+
+  function openRecord(id: string, page: string) {
+    setRecordTarget({ id, page });
+    setWorkspace(page);
+  }
+
+  const [leaseTenancy, setLeaseTenancy] = useState<string>();
+  const [feedbackTenancy, setFeedbackTenancy] = useState<string>();
+  function reviewLandlord(id?: string) {
+    setFeedbackTenancy(id);
+    setWorkspace('feedback');
+  }
+
+  const [openRentReport, setOpenRentReport] = useState(false);
+  useEffect(() => {
+    if (workspace !== 'rent') setOpenRentReport(false);
+  }, [workspace]);
+  const translate = (english: string, bengali: string) => bangla ? bengali : english;
+  const navLabel = (key: string, english: string) => bangla ? banglaNavigation[key] ?? english : english;
   const isGov = user.role === 'government'; const isAdmin = user.role === 'admin';
   const [notificationCase, setNotificationCase] = useState<string>();
   const [appearanceError, setAppearanceError] = useState('');
@@ -593,13 +649,14 @@ function Workspace(props: {
   }
   const [inbox, setInbox] = useState<Inbox>({ items: [], unread: 0 });
   const [inboxError, setInboxError] = useState('');
+  const [inboxLoaded, setInboxLoaded] = useState(false);
   async function refreshInbox() {
     try {
       setInbox(await request<Inbox>('/workspace/notifications'));
       setInboxError('');
     } catch (error) {
       setInboxError(error instanceof Error ? error.message : 'Inbox unavailable');
-    }
+    } finally { setInboxLoaded(true); }
   }
   useEffect(() => {
     void refreshInbox();
@@ -608,62 +665,202 @@ function Workspace(props: {
   }, [user.email]);
   const nav: string[][] = isGov ? [['overview', 'Overview', 'home'], ['queue', 'Review queue', 'inbox'], ['certificates', 'Issued certificates', 'award']] : isAdmin ? [['overview', 'Overview', 'home'], ['official', 'Create government profile', 'shield'], ['admins', 'Create administrator', 'users']] : user.role === 'landlord' ? [['overview', 'Overview', 'home'], ['properties', 'My buildings', 'building'], ['units', 'Apartments', 'layers'], ['listings', 'Listings', 'tag'], ['viewings', 'Viewing requests', 'calendar'], ['offers', 'Rental offers', 'file-text'], ['rent', 'Rent', 'card']] : [['overview', 'Overview', 'home'], ['apply', 'New application', 'file-plus'], ['applications', 'My applications', 'files'], ['relocate', 'Update location', 'map-pin'], ['browse', 'Find a home', 'search'], ['viewings', 'Viewing requests', 'calendar'], ['tenancies', 'My tenancies', 'key'], ['offers', 'My offers', 'file-text'], ['rent', 'Rent', 'card'], ['certificates', 'My certificates', 'award']];
   const rentalParty = user.role === 'tenant' || user.role === 'landlord';
-  if (rentalParty) nav.push(['care', 'Tenancy care', 'key'], ['leases', 'Lease agreements', 'files'], ['statements', 'Rent statements', 'card']);
+  if (rentalParty) nav.push(['care', 'Tenancy care', 'key'], ['leases', 'Lease agreements', 'files'], ['statements', 'Rent statements', 'card'], ['feedback', 'Tenancy feedback', 'message-circle']);
   nav.push(['cases', 'Disputes', 'shield'], ['tools', 'Tools', 'layers'], ['profile', 'Profile settings', 'gear']);
   nav.splice(1, 0, ['inbox', 'Inbox', 'inbox']);
-  nav.push(['support', 'Support', 'message-circle']);
+  nav.push(['support', 'Support', 'message-circle'], ['exports', 'Exports', 'download']);
   if (rentalParty) nav.push(['trust', 'Records & privacy', 'shield'], ['sharing', 'Shared history', 'users']);
   if (user.role === 'tenant') nav.push(['reliability', 'Reliability', 'shield']);
-  return <div className="app-shell" onKeyDown={event => { if (menuOpen && event.key === "Escape") closeNavigation(); }}><aside id="workspace-navigation" className={menuOpen ? "sidebar open" : "sidebar"}>{menuOpen && <button id="workspace-menu-close" className="mobile-nav-close" onClick={closeNavigation}>Close menu</button>}<Brand /><div className="workspace-label">{isAdmin ? 'Administrator' : isGov ? 'Government workspace' : user.role === 'landlord' ? 'Landlord workspace' : 'Tenant workspace'}</div><nav aria-label="Workspace">{Array.from(new Set(nav.filter(([key]) => key !== 'profile').map(([key]) => navigationGroup(key)))).sort().map(group => <details className="navigation-section" key={group + workspace} open={group === '1 Workspace' || nav.some(([key]) => key === workspace && navigationGroup(key) === group)}>
-      <summary>{group.slice(2)}<span aria-hidden="true">⌄</span></summary>
-      {nav.filter(([key]) => key !== 'profile' && navigationGroup(key) === group).map(([key, label, icon]) => <button key={key} className={`nav-item ${workspace === key ? 'active' : ''}`} aria-current={workspace === key ? 'page' : undefined} onClick={() => { setWorkspace(key); setNotificationCase(undefined); if (menuOpen) closeNavigation(); if (key === 'inbox') void refreshInbox(); }}><Icon name={icon} /><span className="nav-label">{label}</span>{key === 'queue' && props.pendingCount > 0 && <b className="nav-count">{props.pendingCount}</b>}{key === 'inbox' && inbox.unread > 0 && <b className="nav-count">{inbox.unread}</b>}</button>)}
-    </details>)}</nav><div className="sidebar-footer"><div className="profile-chip"><span className="profile-avatar">{accountProfile?.photo_url ? <img src={accountProfile.photo_url} alt="" /> : displayName.slice(0, 1).toUpperCase()}</span><div className="profile-meta"><strong>{displayName}</strong><small>{user.email}</small></div></div><button className="logout-link" onClick={props.onLogout}><Icon name="log-out" /> Log out</button></div></aside>
+  function exportDatasets(): ExportDataset[] {
+    const datasets: ExportDataset[] = [{
+      label: 'Inbox', description: 'Recent notifications and read status.',
+      load: async () => {
+        const { items } = await request<Inbox>('/workspace/notifications');
+        return { name: 'Inbox', columns: ['Message', 'Category', 'Received', 'Read'],
+          rows: items.map(item => [item.message, formatLabel(item.destination), item.created_at, item.read_at]) };
+      },
+    }];
+    if (isGov || user.role === 'tenant') {
+      datasets.push({
+        label: 'RIC applications', description: 'Application references, submission dates, and review status.',
+        load: () => ({ name: 'RIC applications', columns: ['Applicant name', 'Application ID', 'Residence area', 'Status', 'Submitted'],
+          rows: props.applications.map(row => [row.applicant_name || row.full_name, row.id, row.area_name, formatStatus(row.status), row.submitted_at]) }),
+      }, {
+        label: 'Certificates', description: 'Certificate numbers, status, and issuance dates.',
+        load: () => ({ name: 'Certificates', columns: ['Certificate holder', 'RIC number', 'Residence area', 'Status', 'Issued'],
+          rows: props.certificates.map(row => [row.applicant_name, row.ric_number, row.area_name, formatStatus(row.status), row.issued_at]) }),
+      });
+    }
+    if (rentalParty) {
+      datasets.push({
+        label: 'Rent invoices', description: 'Invoice history with amounts in BDT and payment status.',
+        load: async () => {
+          const records = await request<RentInvoice[]>('/rent/history');
+          return { name: 'Rent invoices', columns: ['Tenant name', 'Landlord name', 'Residence address', 'Apartment', 'Invoice ID', 'Period', 'Amount (BDT)', 'Status', 'Payment date'],
+            rows: records.map(row => [row.tenant_name, row.landlord_name, row.property_address, row.unit_number, row.id, row.period_month, Number(row.amount), formatStatus(row.status), row.status === 'accepted' ? row.paid_on : null]) };
+        },
+      });
+    }
+    if (rentalParty) {
+      datasets.push({
+        label: 'Tenancies', description: 'Residences, apartment numbers, parties and agreed monthly rent.',
+        load: async () => {
+          const records = await request<{
+            tenant_name: string | null; landlord_name: string | null; address_line: string; unit_number: string | null;
+            start_date: string; end_date: string | null; monthly_rent: number | string; status: string;
+          }[]>('/records/tenancies');
+          return { name: 'Tenancies', columns: ['Tenant name', 'Landlord name', 'Residence address', 'Apartment', 'Start', 'End', 'Monthly rent (BDT)', 'Status'],
+            rows: records.map(row => [row.tenant_name, row.landlord_name, row.address_line, row.unit_number, row.start_date, row.end_date, Number(row.monthly_rent), formatStatus(row.status)]) };
+        },
+      });
+    }
+    if (user.role === 'landlord') {
+      datasets.push({
+        label: 'Properties', description: 'Building inventory, locations, and monthly rent.',
+        load: () => ({ name: 'Properties', columns: ['Landlord name', 'Residence address', 'Property ID', 'Area', 'Type', 'Monthly rent (BDT)'],
+          rows: props.properties.map(row => [row.landlord_name, row.address_line, row.id, row.area_name, formatLabel(row.property_type), Number(row.monthly_rent)]) }),
+      }, {
+        label: 'Listings', description: 'Listing titles, publication dates, and status.',
+        load: () => {
+          const properties = new Map(props.properties.map(property => [property.id, property]));
+          return { name: 'Listings', columns: ['Listing title', 'Landlord name', 'Residence address', 'Apartment', 'Listing ID', 'Property ID', 'Published', 'Status'],
+            rows: props.listings.map(row => {
+              const property = properties.get(row.property_id);
+              return [row.title, property?.landlord_name, property?.address_line, row.unit_number, row.id, row.property_id, row.published_at, formatStatus(row.status)];
+            }) };
+        },
+      });
+    }
+    return datasets;
+  }
+
+  const commands = nav.map(([key, label]) => ({ id: key, label: navLabel(key, label), run: () => {
+    if (key === 'applications') onSelectApplication(null);
+    if (key === 'inbox') void refreshInbox();
+    setWorkspace(key);
+  } }));
+  const recordCommands = [
+    ...props.applications.map(application => ({
+      id: application.id,
+      label: application.applicant_name || application.full_name || application.id,
+      keywords: application.id,
+      run: () => {
+        if (isGov) openRecord(application.id, 'queue');
+        else { onSelectApplication(application.id); setWorkspace('applications'); }
+      },
+    })),
+    ...props.certificates.map(certificate => ({
+      id: certificate.id,
+      label: `Certificate ${certificate.ric_number}`,
+      keywords: `${certificate.id} ${certificate.applicant_name}`,
+      run: () => openRecord(certificate.id, 'certificates'),
+    })),
+    ...props.landlordRent.filter(row => row.invoice_id).map(row => ({
+      id: row.invoice_id!,
+      label: `Rent · ${row.tenant_name || row.property_address || row.invoice_id}`,
+      keywords: `${row.invoice_id} ${row.tenant_id} ${row.property_address || ''}`,
+      run: () => openRecord(row.invoice_id!, 'rent'),
+    })),
+  ];
+  if (props.rentOverview?.invoice) {
+    const invoiceId = props.rentOverview.invoice.id;
+    recordCommands.push({ id: invoiceId, label: `Rent ${props.rentOverview.paid_current_period ? 'receipt' : 'invoice'} ${invoiceId.slice(0, 8)}`, keywords: invoiceId, run: () => openRecord(invoiceId, 'rent') });
+  }
+  return <div className="app-shell" onKeyDown={event => { if (menuOpen && event.key === "Escape") closeNavigation(); }}><aside id="workspace-navigation" className={menuOpen ? "sidebar open" : "sidebar"}>{menuOpen && <button id="workspace-menu-close" className="mobile-nav-close" onClick={closeNavigation}>Close menu</button>}<Brand /><div className="workspace-label">{isAdmin ? 'Administrator' : isGov ? 'Government workspace' : user.role === 'landlord' ? 'Landlord workspace' : 'Tenant workspace'}{bangla && <span className="workspace-language-label" lang="bn"> · {isAdmin ? 'প্রশাসন' : isGov ? 'সরকারি কার্যালয়' : user.role === 'landlord' ? 'বাড়িওয়ালার কার্যালয়' : 'ভাড়াটিয়ার কার্যালয়'}</span>}</div><nav aria-label="Workspace">{Array.from(new Set(nav.filter(([key]) => key !== 'profile').map(([key]) => navigationGroup(key)))).sort().map(group => <details className="navigation-section" key={group + workspace} open={group === '1 Workspace' || nav.some(([key]) => key === workspace && navigationGroup(key) === group)}>
+      <summary>{group.slice(2)}<Icon name="chevron-down" /></summary>
+      {nav.filter(([key]) => key !== 'profile' && navigationGroup(key) === group).map(([key, label, icon]) => <button key={key} className={`nav-item ${workspace === key ? 'active' : ''}`} aria-current={workspace === key ? 'page' : undefined} onClick={() => { setWorkspace(key); setNotificationCase(undefined); if (menuOpen) closeNavigation(); if (key === 'inbox') void refreshInbox(); }}><Icon name={icon} /><span className="nav-label" lang={bangla ? "bn" : undefined}>{navLabel(key, label)}</span>{key === 'queue' && props.pendingCount > 0 && <b className="nav-count">{props.pendingCount}</b>}{key === 'inbox' && inbox.unread > 0 && <b className="nav-count">{inbox.unread}</b>}</button>)}
+    </details>)}</nav><div className="sidebar-footer"><div className="profile-chip"><span className="profile-avatar">{accountProfile?.photo_url ? <img src={accountProfile.photo_url} alt="" /> : displayName.slice(0, 1).toUpperCase()}</span><div className="profile-meta"><strong>{displayName}</strong><small>{user.email}</small></div></div><button className="logout-link" onClick={props.onLogout}><Icon name="log-out" /> {translate('Log out', 'লগ আউট')}</button></div></aside>
     {menuOpen && <button className="navigation-backdrop" aria-label="Close navigation" tabIndex={-1} onClick={closeNavigation} />}
-    <main className="content" data-workspace={workspace}><button id="workspace-menu-toggle" className="secondary mobile-nav-toggle" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><Icon name="menu" /> Menu</button><header className="topbar"><div><span className="eyebrow">{isAdmin ? 'Platform controls' : isGov ? 'Authorized official workspace' : 'Your secure workspace'}</span><h1>{workspace === 'overview' ? `Welcome, ${displayName}.` : nav.find(([key]) => key === workspace)?.[1]}</h1></div><button className="secondary" disabled={!accountProfile} aria-pressed={appearance === 'dark'} onClick={async () => {
+    <main className="content" data-workspace={workspace}><button id="workspace-menu-toggle" className="secondary mobile-nav-toggle" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><Icon name="menu" /> Menu</button><header className="topbar"><div className="workspace-heading" lang={bangla ? "bn" : undefined}><span className="eyebrow">{isAdmin ? translate('Platform controls', 'প্ল্যাটফর্ম নিয়ন্ত্রণ') : isGov ? translate('Authorized official workspace', 'অনুমোদিত কর্মকর্তার কার্যালয়') : translate('Your secure workspace', 'আপনার নিরাপদ কর্মক্ষেত্র')}</span><h1>{workspace === 'overview' ? translate(`Welcome, ${displayName}.`, `স্বাগতম, ${displayName}।`) : navLabel(workspace, nav.find(([key]) => key === workspace)?.[1] ?? '')}</h1></div><div className="workspace-header-actions"><WorkspaceSearch commands={[...commands, ...recordCommands]} />
+      <Button className="secondary" aria-label="বাংলা language" aria-pressed={bangla} onClick={() => {
+        localStorage.setItem('ctrx-workspace-language', bangla ? 'en' : 'bn');
+        setBangla(!bangla);
+      }}>EN | <span lang="bn">বাং</span></Button><button className="secondary" disabled={!accountProfile} aria-pressed={appearance === 'dark'} onClick={async () => {
       setAppearanceError('');
       try {
         setAccountProfile(await request<AccountProfile>('/profile/appearance', { method: 'PUT', body: JSON.stringify({ appearance: appearance === 'dark' ? 'light' : 'dark', theme }) }));
       } catch (reason) { setAppearanceError(reason instanceof Error ? reason.message : 'Could not change appearance'); }
-    }}>{appearance === 'dark' ? 'Light mode' : 'Dark mode'}</button><button className="secondary inbox-shortcut" onClick={() => setWorkspace('inbox')} aria-label={`Open inbox, ${inbox.unread} unread notifications`}><Icon name="inbox" />{inbox.unread > 0 && <span>{inbox.unread}</span>}</button><button className="account-menu secondary" onClick={() => setWorkspace('profile')} aria-label="Open profile settings"><span className="profile-avatar">{accountProfile?.photo_url ? <img src={accountProfile.photo_url} alt="" /> : displayName.slice(0, 1).toUpperCase()}</span><span>{displayName}<small>Profile & settings</small></span><Icon name="gear" /></button></header>{appearanceError && <p className="alert error" role="alert">{appearanceError}</p>}{props.error && <div className="alert error" role="alert">{props.error}</div>}{props.notice && <div className="alert success" role="status">{props.notice}</div>}
-      {workspace === 'overview' && <Overview user={user} applications={props.applications} certificates={props.certificates} pendingCount={props.pendingCount} rentOverview={props.rentOverview} setWorkspace={setWorkspace} unread={inbox.unread} properties={props.properties.length} listings={props.listings.filter(item => item.status === "available").length} onRefresh={props.onRefresh} />}
-      {workspace === 'inbox' && <InboxPanel inbox={inbox} error={inboxError} refresh={refreshInbox} open={(item) => {
+    }}><Icon name={appearance === 'dark' ? 'sun' : 'moon'} />{appearance === 'dark' ? translate('Light mode', 'আলোকিত মোড') : translate('Dark mode', 'অন্ধকার মোড')}</button><button className="account-menu secondary" onClick={() => setWorkspace('profile')} aria-label="Open profile settings"><span className="profile-avatar">{accountProfile?.photo_url ? <img src={accountProfile.photo_url} alt="" /> : displayName.slice(0, 1).toUpperCase()}</span><span>{displayName}<small>{translate('Profile & settings', 'প্রোফাইল ও সেটিংস')}</small></span><Icon name="gear" /></button></div></header>{appearanceError && <p className="alert error" role="alert">{appearanceError}</p>}{props.error && <div className="alert error" role="alert">{props.error}</div>}{props.notice && <div className="alert success" role="status">{props.notice}</div>}
+      {workspace === 'overview' && <Overview user={user} applications={props.applications} certificates={props.certificates} pendingCount={props.pendingCount} rentOverview={props.rentOverview} rentLoading={props.rentLoading} onReviewLandlord={reviewLandlord} onReportRent={() => { setOpenRentReport(true); setWorkspace('rent'); }} setWorkspace={setWorkspace} unread={inbox.unread} properties={props.properties.length} listings={props.listings.filter(item => item.status === "available").length} onRefresh={props.onRefresh} onDownloadCertificate={props.onDownloadCertificate} />}
+      {workspace === 'inbox' && <InboxPanel inbox={inbox} loaded={inboxLoaded} error={inboxError} refresh={refreshInbox} open={(item) => {
         setWorkspace(item.destination);
         if (item.destination === 'applications') onSelectApplication(item.record_id);
         if (item.destination === 'cases') setNotificationCase(item.record_id);
+        if (item.destination === 'leases') setLeaseTenancy(item.record_id);
       }} />}
+      {workspace === 'exports' && <ExportPanel datasets={exportDatasets()} />}
       {workspace === 'support' && <SupportCenter request={request} staff={user.role === 'admin' || user.role === 'government'} />}
       {workspace === 'trust' && rentalParty && <TrustHistory request={request} certificates={user.role === 'tenant' ? props.certificates : []} tenant={user.role === 'tenant'} landlord={user.role === 'landlord'} onDownload={props.onDownloadCertificate} />}
       {workspace === 'care' && rentalParty && <TenancyCare role={user.role} request={request} openCase={id => { setNotificationCase(id); setWorkspace('cases'); }} />}
+      {workspace === 'feedback' && rentalParty && <TenancyFeedback onViewTenancy={id => { setLeaseTenancy(id); setWorkspace('leases'); }} initialTenancyId={feedbackTenancy} request={request} tenant={user.role === 'tenant'} />}
       {workspace === 'tools' && <RentalTools />}
-      {['leases', 'statements', 'cases'].includes(workspace) && <RentalRecords view={workspace} setView={setWorkspace} role={user.role} request={request} caseId={notificationCase} />}
+      {['leases', 'statements', 'cases'].includes(workspace) && <RentalRecords view={workspace} setView={setWorkspace} role={user.role} request={request} caseId={notificationCase} initialTenancyId={workspace === 'leases' ? leaseTenancy : undefined} />}
       {workspace === 'profile' && <ProfileSettings user={user} onSaved={setAccountProfile} />}
       {workspace === 'sharing' && <SharingPanel tenant={user.role === 'tenant'} tenancies={props.tenancies} />}
       {workspace === 'reliability' && <ReliabilityPanel />}
       {workspace === 'apply' && <ApplicationForm areas={props.areas} busy={props.busy} onSubmit={props.onApply} />}
       {workspace === 'relocate' && <RelocationForm areas={props.areas} busy={props.busy} onSubmit={props.onRelocate} />}
-      {workspace === 'applications' && (selectedApp ? <ApplicationDetail application={selectedApp} onBack={() => onSelectApplication(null)} /> : <ApplicationList applications={props.applications} onRefresh={props.onRefresh} onSelect={onSelectApplication} />)}
-      {workspace === 'queue' && <ReviewQueue applications={props.applications} busy={props.busy} onRefresh={props.onRefresh} onReview={props.onReview} onIssue={props.onIssue} />}
-      {workspace === 'certificates' && <CertificateList certificates={props.certificates} onDownload={props.onDownloadCertificate} tenant={user.role === 'tenant'} />}
+      {workspace === 'applications' && (selectedApp ? <ApplicationDetail application={selectedApp} certificate={props.certificates.find(item => item.application_id === selectedApp.id)} onBack={() => onSelectApplication(null)} /> : <ApplicationList applications={props.applications} onRefresh={props.onRefresh} onSelect={onSelectApplication} />)}
+      {workspace === 'queue' && <ReviewQueue key={recordTarget?.page === 'queue' ? recordTarget.id : undefined} applications={props.applications} busy={props.busy} onRefresh={props.onRefresh} onReview={props.onReview} onIssue={props.onIssue} />}
+      {workspace === 'certificates' && <CertificateList certificates={props.certificates} onDownload={props.onDownloadCertificate} tenant={user.role === 'tenant'} onApply={props.applications.length === 0 ? () => setWorkspace('apply') : undefined} />}
       {workspace === 'properties' && <PropertyManager properties={props.properties} areas={props.areas} busy={props.busy} onCreate={props.onCreateProperty} />}
       {workspace === 'units' && <UnitManager properties={props.properties} />}
       {workspace === 'listings' && <ListingManager onSaved={props.onRefreshListings} properties={props.properties} listings={props.listings} busy={props.busy} onCreate={props.onCreateListing} />}
       {workspace === 'browse' && <PropertyBrowser areas={props.areas} listings={props.availableListings} busy={props.busy} onRequest={props.onRequestViewing} />}
       {workspace === 'viewings' && user.role === 'tenant' && <ViewingList viewings={props.viewings} busy={props.busy} onUpdate={props.onUpdateViewing} />}
       {workspace === 'viewings' && user.role === 'landlord' && <LandlordViewingList viewings={props.landlordViewings} busy={props.busy} onUpdate={props.onUpdateViewing} />}
-      {workspace === 'tenancies' && <TenancyList tenancies={props.tenancies} busy={props.busy} onEnd={props.onEndTenancy} />}
+      {workspace === 'tenancies' && <TenancyList onReviewLandlord={reviewLandlord} tenancies={props.tenancies} busy={props.busy} onEnd={props.onEndTenancy} />}
       {workspace === 'offers' && user.role === 'tenant' && <TenantRentalOfferList offers={props.rentalOffers} listings={props.availableListings} busy={props.busy} onCreate={props.onCreateRentalOffer} onRefresh={props.onRefreshTenantRentalOffers} onTenantRespond={props.onTenantRespondToRentalOffer} />}
       {workspace === 'offers' && user.role === 'landlord' && <LandlordRentalOfferList offers={props.landlordRentalOffers} busy={props.busy} onRespond={props.onRespondToRentalOffer} onRefresh={props.onRefreshLandlordRentalOffers} />}
-      {workspace === 'rent' && user.role === 'tenant' && <TenantRentPanel overview={props.rentOverview} busy={props.busy} onPay={props.onPayRent} onRefresh={props.onRefreshRent} />}
-      {workspace === 'rent' && user.role === 'landlord' && <LandlordRentPanel rows={props.landlordRent} busy={props.busy} onGenerate={props.onGenerateRent} onConfirm={props.onConfirmRentPayment} onRefresh={props.onRefreshRent} />}
+      {workspace === 'rent' && user.role === 'tenant' && <TenantRentPanel startReporting={openRentReport} overview={props.rentOverview} busy={props.busy} onPay={props.onPayRent} onRefresh={props.onRefreshRent} />}
+      {workspace === 'rent' && user.role === 'landlord' && <LandlordRentPanel rows={props.landlordRent} busy={props.busy} onGenerate={props.onGenerateRent} onConfirm={props.onConfirmRentPayment} onMissed={props.onRecordMissedRent} onRefresh={props.onRefreshRent} />}
       {workspace === 'official' && <OfficialForm areas={props.areas} busy={props.busy} onSubmit={props.onCreateOfficial} />}
       {workspace === 'admins' && <AdminForm busy={props.busy} onSubmit={props.onCreateAdmin} />}
       <footer>CTRx · Central Tenant Records <span>Audit-ready · Role-based access</span></footer></main></div>;
 }
 
-function Overview({ user, applications, certificates, pendingCount, rentOverview, setWorkspace, unread, properties, listings, onRefresh }: {
+function CurrentHome({ overview, onManage, onReport, onReview }: { overview: RentOverview; onManage: () => void; onReport: () => void; onReview: () => void }) {
+  const dueDay = overview.rent_due_day ?? 1;
+  const period = overview.period_month ? new Date(overview.period_month + 'T00:00:00') : null;
+  const dueDate = period && new Date(period.getFullYear(), period.getMonth(), Math.min(
+    dueDay, new Date(period.getFullYear(), period.getMonth() + 1, 0).getDate(),
+  ));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const outstanding = Number(overview.outstanding ?? 0);
+  const paid = overview.paid_current_period;
+  const reported = overview.invoice?.status === 'submitted';
+  const canReport = !paid && overview.invoice?.status === 'pending';
+  const overdue = !paid && !reported && outstanding > 0 && !!dueDate && today > dueDate;
+  const dueSoon = !paid && !reported && outstanding > 0 && !!dueDate && !overdue &&
+    dueDate <= new Date(today.getFullYear(), today.getMonth(), today.getDate() + 5);
+  const nextMonth = period && new Date(period.getFullYear(), period.getMonth() + 1, 1);
+  if (nextMonth) nextMonth.setDate(Math.min(dueDay, new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate()));
+  const dateLabel = (date: Date) => date.toLocaleDateString(undefined, { dateStyle: 'medium' });
+  const tone = paid ? 'active' : overdue ? 'declined' : 'pending';
+  const status = paid ? 'Paid' : reported ? 'Payment reported' : overdue ? 'Overdue' : overview.invoice?.status === 'pending' ? 'Due' : 'Awaiting invoice';
+
+  return <section className="panel current-home" data-urgency={overdue ? 'overdue' : dueSoon ? 'soon' : undefined}>
+    <div className="panel-heading">
+      <div><span className="step">CURRENT HOME</span><h2>{overview.property_address}{overview.unit_number ? ` · Apartment ${overview.unit_number}` : ''}</h2><p>{formatLabel(overview.property_type || 'Home')} · ৳{Number(overview.monthly_rent ?? 0).toLocaleString()}/month · Rent due day {dueDay}</p></div>
+      <div className="record-actions"><Button className="secondary small-button" onClick={onReview}>Review landlord</Button>
+      {canReport && (overdue || dueSoon)
+        ? <Button className="primary" onClick={onReport}>Report ৳{Number(overview.invoice?.amount ?? outstanding).toLocaleString()} payment</Button>
+        : <button className="text-button" onClick={onManage}>Manage rent →</button>}</div>
+    </div>
+    {paid && <p className="current-home-summary"><span className="status status-active">Paid</span>{nextMonth && <span>Next due {dateLabel(nextMonth)}</span>}<span>৳{Number(overview.total_paid ?? 0).toLocaleString()} paid for this tenancy</span></p>}
+    {!paid && <div className="stats current-home-stats">
+      <Stat icon="building" title={<span className={`status status-${tone}`}>{status}</span>} text={period?.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) ?? 'This month'} />
+      <Stat icon="card" title={`৳${Number(overview.total_paid ?? 0).toLocaleString()}`} text="Total paid for this tenancy" />
+      <Stat icon="check" title={<span className={`status status-${outstanding === 0 ? 'active' : tone}`}>৳{outstanding.toLocaleString()}</span>} text="Outstanding this month" />
+    </div>}
+  </section>;
+}
+
+function Overview({ user, applications, certificates, pendingCount, rentOverview, rentLoading, onReportRent, onReviewLandlord, setWorkspace, unread, properties, listings, onRefresh, onDownloadCertificate }: {
   user: User; applications: Application[]; certificates: Certificate[]; pendingCount: number;
-  rentOverview: RentOverview | null; setWorkspace: (value: string) => void;
-  unread: number; properties: number; listings: number; onRefresh: () => void;
+  rentOverview: RentOverview | null; rentLoading: boolean; onReportRent: () => void; onReviewLandlord: (id?: string) => void; setWorkspace: (value: string) => void;
+  unread: number; properties: number; listings: number; onRefresh: () => void; onDownloadCertificate: (id: string) => void;
 }) {
   if (user.role === 'government') return <GovernmentDashboard applications={applications} certificates={certificates} unread={unread} setWorkspace={setWorkspace} onRefresh={onRefresh} />;
   const links = {
@@ -694,7 +891,17 @@ function Overview({ user, applications, certificates, pendingCount, rentOverview
     { key: 'cases', icon: 'file-text', title: 'Follow rental disputes', description: 'Review case details, evidence, and updates.' },
     { key: 'tools', icon: 'layers', title: 'Rental planning tools', description: 'Practical planning tools in one place.' },
   ];
-  return <><section className="overview-focus"><div><h2>{unread ? 'Unread notifications' : user.role === 'tenant' ? 'Your rental records' : user.role === 'landlord' ? 'Your rental portfolio' : 'Platform administration'}</h2><p>{unread ? 'Your inbox brings together changes to your records and requests.' : 'Choose a task below or explore your records from the navigation.'}</p></div><button className="primary" onClick={() => setWorkspace('inbox')}><Icon name="inbox" /> Open inbox{unread > 0 && <span> · {unread}</span>}</button></section>
+  const issuedCertificate = certificates.find(certificate => certificate.status === 'active' && certificate.issued_at);
+  const hasApplication = applications.length > 0;
+  return <>{user.role === 'tenant' ? <section className="overview-focus">
+    <div><h2>Your Rental Identity Certificate</h2><p>{issuedCertificate ? 'Your issued certificate is ready to download.' : hasApplication ? 'Follow the progress of your application.' : 'Add your address and household members to start local review.'}</p></div>
+    {issuedCertificate
+      ? <button className="primary" onClick={() => onDownloadCertificate(issuedCertificate.id)}><Icon name="download" /> Download certificate</button>
+      : <button className="primary" onClick={() => setWorkspace(hasApplication ? 'applications' : 'apply')}><Icon name={hasApplication ? 'files' : 'file-plus'} />{hasApplication ? 'Track application' : 'Apply for a certificate'}</button>}
+    {issuedCertificate && <ShareRentalIdentity key={issuedCertificate.id} createToken={async () => (
+      await request<{ token: string }>(`/certificates/${issuedCertificate.id}/share`, { method: 'POST' })
+    ).token} />}
+  </section> : <section className="overview-focus"><div><h2>{unread ? 'Unread notifications' : user.role === 'landlord' ? 'Your rental portfolio' : 'Platform administration'}</h2><p>{unread ? 'Your inbox brings together changes to your records and requests.' : 'Choose a task below or explore your records from the navigation.'}</p></div><button className="primary" onClick={() => setWorkspace('inbox')}><Icon name="inbox" /> Open inbox{unread > 0 && <span> · {unread}</span>}</button></section>}
   <section className="dashboard-grid" aria-label="Workspace shortcuts">
     {[...links[user.role], { key: 'inbox', icon: 'inbox', count: unread, label: 'Unread notifications' }].map(link =>
       <button className="dashboard-card" key={link.key} onClick={() => setWorkspace(link.key)}>
@@ -704,12 +911,11 @@ function Overview({ user, applications, certificates, pendingCount, rentOverview
       </button>)}
   </section>
 
-  {user.role === 'tenant' && applications.length === 0 && <section className="panel dashboard-start">
-    <div><h2>Apply for a Rental Identity Certificate</h2><p>Add your address and household members to start local review.</p></div>
-    <button className="primary" onClick={() => setWorkspace('apply')}>Start an application</button>
-  </section>}
-    {user.role === 'tenant' && rentOverview?.active && <section className="panel"><div className="panel-heading"><div><span className="step">CURRENT HOME</span><h2>{rentOverview.property_address}</h2><p>{formatLabel(rentOverview.property_type || 'Home')} · ৳{Number(rentOverview.monthly_rent || 0).toLocaleString()}/month · Rent due day {rentOverview.rent_due_day ?? 1}</p></div><button className="text-button" onClick={() => setWorkspace('rent')}>Manage rent →</button></div><div className="stats" style={{ margin: 0 }}><Stat icon="building" title={rentOverview.paid_current_period ? 'Paid' : 'Due'} text={`This month: ${rentOverview.period_month ? new Date(rentOverview.period_month).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : 'current'}`} /><Stat icon="card" title={`৳${Number(rentOverview.total_paid || 0).toLocaleString()}`} text="Total rent paid" /><Stat icon="check" title={`৳${Number(rentOverview.outstanding || 0).toLocaleString()}`} text="Outstanding this month" /></div></section>}
-    {user.role === 'tenant' && applications.length > 0 && <section className="panel"><div className="panel-heading"><div><span className="step">LATEST APPLICATION</span><h2>Track your progress</h2></div><button className="text-button" onClick={() => setWorkspace('applications')}>View all →</button></div><ApplicationTimeline application={applications[0]} /></section>}
+    {user.role === 'tenant' && rentLoading && !rentOverview && <section className="panel rent-skeleton" role="status">
+      <span>Loading current home…</span><div aria-hidden="true"><i /><i /><i /></div>
+    </section>}
+    {user.role === 'tenant' && rentOverview?.active && <CurrentHome overview={rentOverview} onReview={() => onReviewLandlord(rentOverview.tenancy_id)} onReport={onReportRent} onManage={() => setWorkspace('rent')} />}
+    {user.role === 'tenant' && applications.length > 0 && <section className="panel"><div className="panel-heading"><div><span className="step">LATEST APPLICATION</span><h2>Track your progress</h2></div><button className="text-button" onClick={() => setWorkspace('applications')}>View all →</button></div><ApplicationTimeline key={applications[0].id} application={applications[0]} certificate={certificates.find(item => item.application_id === applications[0].id)} /></section>}
   <section className="overview-actions" aria-label="Recommended workspace actions">{actions.map(action => <button key={action.key} onClick={() => setWorkspace(action.key)}><span className="stat-icon"><Icon name={action.icon} /></span><strong>{action.title}</strong><span>{action.description}</span><span className="action-link">Open workspace →</span></button>)}</section></>;
 }
 
@@ -803,8 +1009,8 @@ function GovernmentDashboard({ applications, certificates, unread, setWorkspace,
 
 type InboxItem = { id: number; destination: string; record_id: string; message: string; created_at: string; read_at: string | null };
 type Inbox = { items: InboxItem[]; unread: number };
-type AccountProfile = { display_name: string | null; contact_phone: string | null; photo_url: string | null; appearance: 'light' | 'dark'; theme: 'teal' | 'indigo' | 'amber' | 'rose' | 'forest' | 'ocean' };
-type Reliability = { score: number | null; events: { id: string; period_month: string; reason: string; points: number }[] };
+type AccountProfile = { marital_status?: string | null; living_arrangement?: string | null; display_name: string | null; contact_phone: string | null; photo_url: string | null; appearance: 'light' | 'dark'; theme: 'teal' | 'indigo' | 'amber' | 'rose' | 'forest' | 'ocean' };
+type Reliability = { score: number | null; confirmed_payment_periods?: number; events: { id: string; period_month: string; reason: string; points: number }[] };
 type Share = { id: number; other_email: string; categories: string[]; expires_at: string; revoked_at: string | null };
 type SharedHistory = { tenancies?: { start_date: string; end_date: string | null; status: string }[]; reliability?: Reliability };
 
@@ -819,7 +1025,7 @@ function useWorkspaceResource<T>(path: string) {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Something went wrong'); }
     finally { setBusy(false); }
   }
-  async function reload() { setData(await request<T>(path)); }
+  async function reload() { setData(await request<T>(path, { cache: "no-store" })); }
   useEffect(() => { void run(reload); }, [path]);
   return { data, setData, error, busy, reload, run };
 }
@@ -843,6 +1049,8 @@ function ProfileSettings({ user, onSaved }: { user: User; onSaved: (profile: Acc
     const fields = new FormData(event.currentTarget);
     update({ method: 'PUT', body: JSON.stringify({
       display_name: fields.get('display_name'),
+      marital_status: fields.get('marital_status') || null,
+      living_arrangement: fields.get('living_arrangement') || null,
       contact_phone: String(fields.get('contact_phone') || '').trim() || null,
     }) }, 'Profile saved.');
   }
@@ -856,6 +1064,13 @@ function ProfileSettings({ user, onSaved }: { user: User; onSaved: (profile: Acc
             <label>Display name<input name="display_name" maxLength={100} required defaultValue={data.display_name || user.email.split('@')[0]} /></label>
             <label>Private contact number<input name="contact_phone" type="tel" autoComplete="tel" maxLength={16} pattern="[+]?[0-9]{7,15}" defaultValue={data.contact_phone || ''} /></label>
             <small>Use 7–15 digits, with an optional leading +.</small>
+            <label>Marital status<select name="marital_status" defaultValue={data.marital_status ?? ''}>
+              <option value="">Prefer not to say</option><option value="single">Single</option><option value="married">Married</option><option value="other">Other</option>
+            </select></label>
+            <label>Living arrangement<select name="living_arrangement" defaultValue={data.living_arrangement ?? ''}>
+              <option value="">Prefer not to say</option><option value="alone">Lives alone</option><option value="with_family">Lives with family</option><option value="with_partner">Lives with a partner</option><option value="with_roommates">Lives with roommates</option><option value="other">Other</option>
+            </select></label>
+            <small>These details are optional and private.</small>
             <button className="primary" disabled={busy}>Save details</button>
           </form>
           <dl className="profile-facts"><dt>Sign-in email</dt><dd>{user.email}</dd><dt>Account role</dt><dd>{formatLabel(user.role)}</dd></dl>
@@ -889,7 +1104,17 @@ function ProfileSettings({ user, onSaved }: { user: User; onSaved: (profile: Acc
   </>;
 }
 
-function InboxPanel({ inbox, error, refresh, open }: { inbox: Inbox; error: string; refresh: () => Promise<void>; open: (item: InboxItem) => void }) {
+function InboxPanel({ inbox, loaded, error, refresh, open }: { inbox: Inbox; loaded: boolean; error: string; refresh: () => Promise<void>; open: (item: InboxItem) => void }) {
+  const [query, setQuery] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const search = query.trim().toLocaleLowerCase();
+  const destinationLabel = (destination: string) => ({
+    applications: 'RIC applications', queue: 'Review queue', rent: 'Rent', cases: 'Disputes',
+    viewings: 'Viewings', offers: 'Rental offers', care: 'Tenancy care', certificates: 'Certificates',
+  }[destination] ?? formatLabel(destination));
+  const visible = inbox.items.filter(item => (!unreadOnly || !item.read_at) &&
+    [item.message, destinationLabel(item.destination), item.record_id].some(value => value?.toLocaleLowerCase().includes(search)));
   const [actionError, setActionError] = useState('');
   const [pending, setPending] = useState<number>();
   async function read(item: InboxItem, navigate = false) {
@@ -903,20 +1128,52 @@ function InboxPanel({ inbox, error, refresh, open }: { inbox: Inbox; error: stri
       setActionError(reason instanceof Error ? reason.message : 'Could not mark this notification as read');
     } finally { setPending(undefined); }
   }
-  return <section className="panel"><div className="panel-heading"><h2>{inbox.unread} unread</h2><button className="secondary" onClick={refresh}>Refresh</button></div>
+  return <section className="panel inbox-panel" aria-label="Notifications">
+    <div className="inbox-heading">
+      <div><h2>Notifications</h2><p>Updates and actions across your workspace.</p></div>
+      <div className="inbox-heading-actions"><span className={`status status-${inbox.unread ? 'active' : 'draft'}`}>{inbox.unread} unread</span>
+        <Button className="secondary small-button" disabled={refreshing} onClick={async () => {
+          setRefreshing(true);
+          try { await refresh(); } finally { setRefreshing(false); }
+        }}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button>
+      </div>
+    </div>
+    <div className="inbox-toolbar">
+      <div className="inbox-filters" aria-label="Filter notifications">
+        <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>All</button>
+        <button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>Unread</button>
+      </div>
+      <div className="inbox-search"><Icon name="search" /><input type="search" aria-label="Search recent notifications" placeholder="Search recent notifications" value={query} onChange={event => setQuery(event.target.value)} /></div>
+    </div>
     {(error || actionError) && <p className="alert error" role="alert">{actionError || error}</p>}
-    {!error && inbox.items.length === 0 && <Empty title="Your inbox is empty" text="Updates to your applications, rent, or viewings appear here." />}
-    {inbox.items.map(item => <article className={`record-row ${item.read_at ? '' : 'unread-row'}`} key={item.id}>
-      <div><strong>{item.message}</strong><small>{new Date(item.created_at).toLocaleString()}</small></div>
-      <div className="button-row">{!item.read_at && <button className="secondary small-button" disabled={pending !== undefined} onClick={() => void read(item)}>Mark as read</button>}
-      <button className="secondary small-button" disabled={pending !== undefined} onClick={() => void read(item, true)}>Open {item.destination}</button></div>
-    </article>)}
+    {(search || unreadOnly) && <p className="inbox-result-count" role="status">{visible.length} {visible.length === 1 ? 'result' : 'results'}</p>}
+    {!loaded && <p role="status">Loading notifications…</p>}
+    {loaded && !error && visible.length === 0 && <Empty title={search ? 'No matching notifications' : unreadOnly ? 'No unread notifications here' : 'Your inbox is empty'}
+      text={search ? 'Try a different keyword or switch to All.' : unreadOnly ? 'Switch to All to see recent notifications.' : 'Updates about your applications, rent, and viewings appear here.'} />}
+    <ul className="inbox-list">
+      {visible.map(item => <li className="inbox-notification" data-unread={!item.read_at} key={item.id}>
+        <span className="inbox-icon"><Icon name={({ applications: 'files', queue: 'files', rent: 'card', viewings: 'calendar', certificates: 'award', cases: 'shield' } as Record<string, string>)[item.destination] || 'inbox'} /></span>
+        <div className="inbox-message"><div className="inbox-meta"><span>{destinationLabel(item.destination)}</span><time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time>{!item.read_at && <strong>Unread</strong>}</div><p>{item.message}</p></div>
+        <div className="inbox-row-actions">{!item.read_at && <Button className="text-button" disabled={pending !== undefined} onClick={() => void read(item)}>Mark as read</Button>}
+          <Button className="secondary small-button" disabled={pending !== undefined} onClick={() => void read(item, true)}>Open <span aria-hidden="true">→</span></Button></div>
+      </li>)}
+    </ul>
   </section>;
 }
 
 function ScoreHistory({ history }: { history: Reliability }) {
-  return <><div className="score-summary"><strong>{history.score === null ? 'No score yet' : `${history.score} / 100`}</strong><p>Based on rent payments confirmed in the ledger.</p></div>
-    {history.events.map(event => <div className="record-row" key={event.id}><div><strong>{event.reason}</strong><small>{event.period_month.slice(0, 7)}</small></div><b>{event.points > 0 ? '+' : ''}{event.points}</b></div>)}</>;
+  return <div className="reliability-history">
+    <div className="score-summary">
+      <strong>{history.score === null ? 'No score yet' : `${history.score} / 100`}</strong>
+      <p>Based on confirmed payments, recorded missed rent, ledger corrections, and monthly landlord feedback.</p>
+    </div>
+    {history.events.length ? <ul className="record-list">
+      {history.events.map(event => <li className="record-row" key={event.id}>
+        <div><strong>{event.reason}</strong><small>{new Date(event.period_month + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</small></div>
+        <span className={`status status-${event.points > 0 ? 'active' : event.points < 0 ? 'declined' : 'draft'}`}>{event.points > 0 ? '+' : ''}{event.points} points</span>
+      </li>)}
+    </ul> : <p>Your first verified rent event will start your score history.</p>}
+  </div>;
 }
 
 function ReliabilityPanel() {
@@ -925,6 +1182,10 @@ function ReliabilityPanel() {
     {error && <p className="alert error" role="alert">{error}</p>}
     {busy && !data && <p role="status">Loading payment history…</p>}
     {data && <ScoreHistory history={data} />}
+    <details className="score-method"><summary>How your score is calculated</summary>
+      <p>Your score starts from a baseline of 50 once a verified event exists and stays between 0 and 100.</p>
+      <ul><li>Confirmed on-time payment adds 2 points.</li><li>Confirmed late payment subtracts 1 point. A payment after the billed month ends is always late.</li><li>Missed rent recorded by the landlord subtracts 3 points. A confirmed payment for that period clears the missed-rent penalty.</li><li>Corrections adjust the effect of the original ledger entry.</li><li>Positive landlord feedback adds up to 1 point per month when no concerns are recorded for that month.</li></ul>
+    </details>
   </section>;
 }
 
@@ -984,29 +1245,66 @@ function SharingPanel({ tenant, tenancies }: { tenant: boolean; tenancies: Tenan
   </div>;
 }
 
-function ApplicationTimeline({ application }: { application: Application }) {
-  const stages = ['Submitted', 'Local review', 'Central review', 'Certificate'];
+function ApplicationTimeline({ application, certificate }: { application: Application; certificate?: Certificate }) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const detailId = useId();
   const { status } = application;
-  const rejected = status.startsWith('rejected');
-  const active = status === 'approved' ? 3 : status.includes('central') ? 2 : status.includes('local') ? 1 : 0;
+  const returned = status === 'pending_local' && Boolean(application.central_reviewed_at);
+  const rejected = status === 'rejected_local' || status === 'rejected_central';
+  const active = status === 'approved' ? 3 : ['pending_central', 'rejected_central'].includes(status) ? 2 : 1;
+  const summary = certificate ? `Certificate issued · ${formatStatus(certificate.status)}`
+    : rejected ? `Application rejected at ${active === 1 ? 'local' : 'central'} review`
+    : returned ? 'Returned to local review'
+    : active === 3 ? 'Approved · awaiting certificate issuance'
+    : active === 2 ? 'Awaiting central review' : 'Awaiting local review';
+  const stages = [
+    { title: 'Submitted', timestamp: application.submitted_at, dateLabel: 'Submitted' },
+    { title: 'Local review', timestamp: application.local_reviewed_at, dateLabel: 'Last local review', note: application.local_note },
+    { title: 'Central review', timestamp: application.central_reviewed_at, dateLabel: 'Last central review', note: application.central_note },
+    { title: 'Certificate', timestamp: certificate?.issued_at, dateLabel: 'Issued', note: certificate?.ric_number },
+  ];
+  const details = selected === null ? null : stages[selected];
+  const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Dhaka' });
+
   return <div className="application-progress">
+    <div className="progress-summary">
+      <div className="progress-summary-status">
+        <span className={`status status-${rejected ? 'declined' : certificate ? certificate.status : 'pending'}`}>{summary}</span>
+        <small>{certificate ? stages.length : active} of {stages.length} milestones complete</small>
+      </div>
+      <span className="progress-application-id"><span>Application ID</span><code>{application.id}</code></span>
+    </div>
     <ol aria-label="Application progress">
       {stages.map((stage, index) => {
-        const completed = index < active || status === 'approved' || index === 0 && !rejected;
+        const completed = Boolean(certificate) || index < active;
         const current = index === active && !completed;
         const state = completed ? 'done' : current ? rejected ? 'rejected' : 'current' : 'waiting';
-        return <li key={stage} data-state={state} aria-current={current ? 'step' : undefined}>
-          <span className="progress-marker" aria-hidden="true">{completed ? '✓' : current && rejected ? '×' : index + 1}</span>
-          <strong>{stage}</strong>
-          <small>{index === 0 ? new Date(application.submitted_at).toLocaleDateString() : completed ? 'Complete' : current ? rejected ? 'Rejected' : 'In review' : 'Pending'}</small>
+        const label = index === 0 ? 'Received'
+          : completed ? index === 3 ? 'Issued' : index === 2 ? 'Approved' : 'Forwarded'
+          : current ? rejected ? 'Rejected' : index === 3 ? 'Awaiting issuance' : returned ? 'Review requested again' : 'Awaiting review'
+          : returned && index === 2 ? 'Returned to local office' : 'Upcoming';
+        return <li key={stage.title} data-state={state} aria-current={current ? 'step' : undefined}>
+          <button type="button" className="milestone-button" aria-label={`${stage.title}, ${label}`} aria-expanded={selected === index}
+            aria-controls={detailId} onClick={() => setSelected(selected === index ? null : index)}>
+            <span className="progress-marker" aria-hidden="true">{completed ? <Icon name="check" /> : current && rejected ? '×' : index + 1}</span>
+            <span className="milestone-label">{stage.title}</span>
+          </button>
         </li>;
       })}
     </ol>
-    {rejected && <div className="timeline-rejection"><strong>{formatStatus(status)}</strong><small>{application.rejection_reason || 'Please contact the reviewing office.'}</small></div>}
+    <div className="milestone-detail" id={detailId} hidden={!details} aria-live="polite">
+      {details && <div className="milestone-detail-content" key={details.title}>
+        <strong>{details.title}</strong>
+        <p>{details.timestamp ? <>{details.dateLabel} <time dateTime={details.timestamp}>{dateTime.format(new Date(details.timestamp))} (Dhaka)</time></> : 'No timestamp recorded yet.'}</p>
+        {details.note && <p><strong>{selected === 3 ? 'Certificate number' : 'Reviewer note'}</strong> {details.note}</p>}
+      </div>}
+    </div>
+    {returned && application.central_note && <div className="milestone-detail"><strong>Instructions from central review</strong><p>{application.central_note}</p></div>}
+    {rejected && <div className="timeline-rejection"><strong>Reason for rejection</strong><small>{application.rejection_reason || 'Contact the reviewing office for details.'}</small></div>}
   </div>;
 }
 
-function ApplicationDetail({ application, onBack }: { application: Application; onBack: () => void }) {
+function ApplicationDetail({ application, certificate, onBack }: { application: Application; certificate?: Certificate; onBack: () => void }) {
   const isRejected = application.status.startsWith('rejected');
   const isApproved = application.status === 'approved';
   const isPending = application.status.startsWith('pending');
@@ -1049,7 +1347,7 @@ function ApplicationDetail({ application, onBack }: { application: Application; 
         </div>
         <div className="record-card">
           <h3>Review timeline</h3>
-          <ApplicationTimeline application={application} />
+          <ApplicationTimeline key={application.id} application={application} certificate={certificate} />
           {isRejected && application.rejection_reason && (
             <div className="field">
               <label>Rejection reason</label>
@@ -1126,7 +1424,7 @@ function ReviewQueue({ applications, busy, onRefresh, onReview, onIssue }: { app
       </select></label>
       <span role="status" className="muted">{visibleApplications.length} of {applications.length} applications</span>
     </div>}
-    {applications.length === 0 ? <Empty title="Queue is clear" text="No applications are currently assigned to this official profile." /> : visibleApplications.length === 0 ? <Empty title="No matching applications" text="Change the search or status filter to see more applications." /> : <div className="review-list">{visibleApplications.map((application) => <div className="review-card" key={application.id}>
+    {applications.length === 0 ? <Empty title="Queue is clear" text="No applications are currently assigned to this official profile." /> : visibleApplications.length === 0 ? <Empty title="No matching applications" text="Change the search or status filter to see more applications." /> : <div className="review-list">{visibleApplications.map((application) => <div className="review-card" key={application.id} id={`record-${application.id}`} tabIndex={-1}>
       <div className="review-main"><div className="avatar">{application.applicant_name.slice(0, 1).toUpperCase()}</div><div><strong>{application.applicant_name}</strong><small>{application.email} · {application.area_name}</small><small>Submitted {new Date(application.submitted_at).toLocaleDateString()} · ID ending {application.identity_last4 || '—'}</small>{application.status === 'pending_local' && application.central_note && <small className="return-note"><strong>Central review notes:</strong> {application.central_note}</small>}</div></div>
       <div className="review-side"><Status status={application.status} /><div className="button-row">
         {application.status === 'pending_local' && <><button className="secondary small-button" disabled={busy} onClick={() => openReason(application.id, 'reject')}>Reject</button><button className="primary small-button" disabled={busy} onClick={() => onReview(application.id, 'forward')}>Forward to central</button></>}
@@ -1141,8 +1439,8 @@ function ReviewQueue({ applications, busy, onRefresh, onReview, onIssue }: { app
   </section>;
 }
 
-function CertificateList({ certificates, onDownload, tenant }: { certificates: Certificate[]; onDownload: (id: string) => void; tenant: boolean }) {
-  return <section className="panel"><div className="panel-heading"><div><span className="step">{tenant ? 'MY LINKED CERTIFICATES' : 'CERTIFICATE REGISTER'}</span><h2>{tenant ? 'Certificates linked to your household' : 'Issued RIC certificates'}</h2></div><span className="panel-number">{certificates.length}</span></div>{certificates.length === 0 ? <Empty title="No certificates issued" text={tenant ? 'Your certificate will appear here automatically after government approval and issuance.' : 'Issued certificates will appear here after central approval.'} /> : <div className="record-list">{certificates.map((certificate) => <div className="record-row" key={certificate.id}><div><strong>{certificate.ric_number}</strong><small>{certificate.applicant_name} · {certificate.area_name} · {new Date(certificate.issued_at).toLocaleDateString()}</small></div><div className="record-actions"><Status status={certificate.status} /><button className="secondary small-button" onClick={() => onDownload(certificate.id)}>Download PDF</button></div></div>)}</div>}</section>;
+function CertificateList({ certificates, onDownload, tenant, onApply }: { certificates: Certificate[]; onDownload: (id: string) => void; tenant: boolean; onApply?: () => void }) {
+  return <section className="panel"><div className="panel-heading"><div><span className="step">{tenant ? 'MY LINKED CERTIFICATES' : 'CERTIFICATE REGISTER'}</span><h2>{tenant ? 'Certificates linked to your household' : 'Issued RIC certificates'}</h2></div><span className="panel-number">{certificates.length}</span></div>{certificates.length === 0 ? tenant && onApply ? <div className="empty-state"><strong>Start your first RIC application</strong><p>Submit your household details and address for local review.</p><button className="primary" onClick={onApply}>Start an application</button></div> : <Empty title="No certificates issued" text={tenant ? 'Your certificate will appear here automatically after government approval and issuance.' : 'Issued certificates will appear here after central approval.'} /> : <div className="record-list">{certificates.map((certificate) => <div className="record-row" key={certificate.id} id={`record-${certificate.id}`} tabIndex={-1}><div><strong>{certificate.ric_number}</strong><small>{certificate.applicant_name} · {certificate.area_name} · {new Date(certificate.issued_at).toLocaleDateString()}</small></div><div className="record-actions"><Status status={certificate.status} /><button className="secondary small-button" onClick={() => onDownload(certificate.id)}>Download PDF</button></div></div>)}</div>}</section>;
 }
 
 function OfficialForm({ areas, busy, onSubmit }: { areas: Area[]; busy: boolean; onSubmit: (payload: { email: string; password: string; full_name: string; level: string; area_id?: number }) => void }) {
@@ -1151,30 +1449,58 @@ function OfficialForm({ areas, busy, onSubmit }: { areas: Area[]; busy: boolean;
   return <section className="panel form-panel"><span className="step">ADMINISTRATION · GOVERNMENT PROFILES</span><h2>Create a government profile ID</h2><p>Provision an official account and assign the smallest jurisdiction needed for its work.</p><form onSubmit={submit} className="form-grid"><label>Official full name<input name="full_name" required /></label><label>Official email<input name="email" type="email" required /></label><label>Password<input name="password" type="password" minLength={8} required /></label><label>Access level<select name="level" value={level} onChange={(event) => setLevel(event.target.value)}><option value="local">Local reviewer</option><option value="central">Central issuer</option></select></label>{level === 'local' && <AreaPicker areas={areas} label="Assigned upazila / thana" className="wide" />}<div className="wide form-actions"><button className="primary" disabled={busy}>{busy ? 'Creating profile…' : 'Create government profile'} <span>→</span></button></div></form></section>;
 }
 
-function AuthScreen({ screen, loginRole, registerRole, resetToken, busy, error, notice, onBack, onLogin, onRegister, onRegisterRole, onBootstrap, onDemoPasswordReset, onPasswordReset, onSwitch }: { screen: 'login' | 'register' | 'bootstrap' | 'forgot' | 'reset'; loginRole: Role; registerRole: 'tenant' | 'landlord'; resetToken: string; busy: boolean; error: string; notice: string; onBack: () => void; onLogin: (event: FormEvent<HTMLFormElement>) => void; onRegister: (event: FormEvent<HTMLFormElement>) => void; onRegisterRole: (role: 'tenant' | 'landlord') => void; onBootstrap: (event: FormEvent<HTMLFormElement>) => void; onDemoPasswordReset: (event: FormEvent<HTMLFormElement>) => void; onPasswordReset: (event: FormEvent<HTMLFormElement>) => void; onSwitch: (screen: 'login' | 'register' | 'bootstrap' | 'forgot' | 'reset') => void }) {
-  const title = screen === 'login' ? `Sign in as ${loginRole}` : screen === 'register' ? `Create a ${registerRole} account` : screen === 'forgot' ? 'Reset your password' : screen === 'reset' ? 'Choose a new password' : 'Create the first administrator';
+function AuthScreen({ screen, loginRole, registerRole, resetToken, busy, error, notice, onBack, onLogin, onLoginRole, onRegister, onRegisterRole, onBootstrap, onDemoPasswordReset, onPasswordReset, onSwitch }: { screen: 'login' | 'register' | 'bootstrap' | 'forgot' | 'reset'; loginRole: Role; registerRole: 'tenant' | 'landlord'; resetToken: string; busy: boolean; error: string; notice: string; onBack: () => void; onLoginRole: (role: Role) => void; onLogin: (event: FormEvent<HTMLFormElement>) => void; onRegister: (event: FormEvent<HTMLFormElement>) => void; onRegisterRole: (role: 'tenant' | 'landlord') => void; onBootstrap: (event: FormEvent<HTMLFormElement>) => void; onDemoPasswordReset: (event: FormEvent<HTMLFormElement>) => void; onPasswordReset: (event: FormEvent<HTMLFormElement>) => void; onSwitch: (screen: 'login' | 'register' | 'bootstrap' | 'forgot' | 'reset') => void }) {
+  const [visiblePassword, setVisiblePassword] = useState(false);
+  useEffect(() => setVisiblePassword(false), [screen, loginRole]);
+  const adminView = screen === 'bootstrap' || (screen === 'login' && loginRole === 'admin');
+  const title = screen === 'login' ? `Sign in as ${loginRole === 'admin' ? 'an administrator' : loginRole === 'government' ? 'a government official' : 'a ' + loginRole}` : screen === 'register' ? `Create a ${registerRole} account` : screen === 'forgot' ? 'Reset your password' : screen === 'reset' ? 'Choose a new password' : 'Create the first administrator';
   return <main className="content auth-content">
     <button className="auth-home-button" onClick={onBack}><span aria-hidden="true">←</span> Back to home</button>
     <div className="auth-layout">
       <aside className="auth-introduction">
         <span className="eyebrow">CENTRAL TENANT RECORDS</span>
-        <h2>A place for every part of renting.</h2>
-        <p>Keep your identity, home, and rental history connected.</p>
+        {adminView ? <>
+          <h2>CTRx administration</h2>
+          <p>Sign in with your assigned administrator account to manage platform access.</p>
+          <div><Icon name="shield" /><span>Manage government and administrator accounts</span></div>
+          <div><Icon name="files" /><span>Review platform audit records</span></div>
+        </> : <><h2>A rental history you can take with you.</h2>
+        <p>Keep track of your tenancy and share the records you choose with a prospective landlord.</p>
         <div><Icon name="award" /><span>Follow your certificate application</span></div>
         <div><Icon name="key" /><span>Manage your tenancy and home</span></div>
-        <div><Icon name="card" /><span>Keep payments and records together</span></div>
+        <div><Icon name="card" /><span>Keep payments and records together</span></div></>}
       </aside>
       <section className="panel auth-panel">
-        <Brand />
+        <img className="auth-card-logo" src={logoImage} alt="CTRx" />
         <span className="eyebrow">{screen === 'login' ? `${loginRole} sign in` : screen === 'register' ? `${registerRole} registration` : screen === 'forgot' || screen === 'reset' ? 'Account recovery' : 'One-time platform setup'}</span>
         <h1>{title}</h1>
+        {screen === 'login' && <p className="auth-card-description">{loginRole === 'admin' || loginRole === 'government' ? 'Use your assigned staff account to continue.' : 'Enter your email and password to open your rental workspace.'}</p>}
+        {screen === 'login' && <label className="auth-role-picker">Sign-in role
+          <select value={loginRole} disabled={busy} onChange={event => onLoginRole(event.target.value as Role)}>
+            {loginRole === 'government' || loginRole === 'admin' ? <>
+              <option value="government">Government official</option>
+              <option value="admin">Administrator</option>
+            </> : <>
+              <option value="tenant">Tenant</option>
+              <option value="landlord">Landlord</option>
+            </>}
+          </select>
+        </label>}
         {notice && <div className="alert success">{notice}</div>}
         {error && <div className="alert error" role="alert">{error}</div>}
-        {screen === 'login' ? <form onSubmit={onLogin} className="auth-form">
-          <label>Email<input name="email" type="email" autoComplete="username" required /></label>
-          <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
+        {screen === 'login' ? <form key={loginRole} onSubmit={onLogin} className="auth-form">
+          <label>Email<input name="email" type="email" autoComplete="username" placeholder="name@example.com" required /></label>
+          <div className="auth-password-field">
+            <label htmlFor="login-password">Password</label>
+            <div className="auth-password-control">
+              <input id="login-password" name="password" type={visiblePassword ? 'text' : 'password'} autoComplete="current-password" placeholder="••••••••" required />
+              <button type="button" aria-label={visiblePassword ? 'Hide password' : 'Show password'} aria-controls="login-password" onClick={() => setVisiblePassword(!visiblePassword)}>
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" />{visiblePassword && <path d="m3 3 18 18" />}</svg>
+              </button>
+            </div>
+          </div>
           <button type="button" className="text-button auth-forgot-link" onClick={() => onSwitch('forgot')}>Forgot password?</button>
-          <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <span>→</span></button>
+          <Button type="submit" className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <span>→</span></Button>
         </form> : screen === 'register' ? <form onSubmit={onRegister} className="auth-form">
           <label>Account type<select value={registerRole} onChange={(event) => onRegisterRole(event.target.value as 'tenant' | 'landlord')}><option value="tenant">Tenant</option><option value="landlord">Landlord</option></select></label>
           <label>Full name<input name="full_name" autoComplete="name" required /></label>
@@ -1203,12 +1529,12 @@ function AuthScreen({ screen, loginRole, registerRole, resetToken, busy, error, 
           <label>Bootstrap password<input name="bootstrap_password" type="password" autoComplete="current-password" required /></label>
           <button className="primary" disabled={busy}>{busy ? 'Creating administrator…' : 'Create first administrator'} <span>→</span></button>
         </form>}
-        {screen === 'login' && <button className="text-button" onClick={() => onSwitch('bootstrap')}>First-time administrator setup</button>}
+        {screen === 'login' && loginRole === 'admin' && <div className="auth-admin-setup"><p>Setting up a new CTRx installation?</p><button className="text-button" onClick={() => onSwitch('bootstrap')}>First-time administrator setup</button></div>}
+        {screen === 'bootstrap' && <button className="text-button" onClick={() => onSwitch('login')}>Back to administrator sign in</button>}
         {screen === 'forgot' && <button className="text-button" onClick={() => onSwitch('login')}>Back to sign in</button>}
         {screen === 'reset' && <button className="text-button" onClick={() => onSwitch('forgot')}>Request a new reset link</button>}
         {screen === 'register' && <button className="text-button" onClick={() => onSwitch('login')}>Already have an account? Sign in</button>}
-        {screen === 'login' && <button className="text-button" onClick={() => onSwitch('register')}>Create an account</button>}
-        <p className="muted auth-note">Government and administrator accounts are provisioned by authorized administrators.</p>
+        {screen === 'login' && (loginRole === 'tenant' || loginRole === 'landlord') && <div className="auth-signup-prompt"><span>New to CTRx?</span> <button className="text-button" onClick={() => { onRegisterRole(loginRole); onSwitch('register'); }}>Create a {loginRole} account</button></div>}
       </section>
     </div>
   </main>;
@@ -1298,7 +1624,7 @@ function ListingManager({ properties, listings, busy, onCreate, onSaved }: { onS
     onCreate(propertyId, { property_id: propertyId, status: String(form.get('status')), title: String(form.get('title')), description: String(form.get('description')) }, unitId || undefined);
   }
   const selectedUnit = units.find((unit) => unit.id === unitId);
-  return <section className="panel-layout"><section className="panel form-panel"><span className="step">PUBLISH A HOME</span><h2>Create a rental listing</h2><p>Choose the building and apartment this listing represents. Apartment listings use that unit’s rent and availability details.</p><form onSubmit={submit} className="auth-form"><label>Building<select name="property_id" value={propertyId} onChange={(event) => void selectProperty(event.target.value)} required><option value="" disabled>Select a building</option>{properties.map((property) => <option value={property.id} key={property.id}>{property.address_line}</option>)}</select></label>{propertyId && <label>Apartment<select name="unit_id" value={unitId} onChange={(event) => setUnitId(event.target.value)} required disabled={loadingUnits || Boolean(unitsError)}><option value="" disabled>{loadingUnits ? 'Loading apartments…' : unitsError ? 'Apartments unavailable' : 'Select an apartment'}</option>{units.map((unit) => <option value={unit.id} key={unit.id}>Apartment {unit.unit_number} · Floor {unit.floor_number} · ৳{unit.monthly_rent.toLocaleString()}</option>)}</select></label>}{unitsError && <p className="alert error" role="alert">{unitsError} <button type="button" className="text-button" onClick={() => void selectProperty(propertyId)}>Try again</button></p>}{propertyId && !loadingUnits && !unitsError && units.length === 0 && <p className="muted">Add an apartment in Apartments before creating a listing.</p>}{selectedUnit && <div className="unit-summary"><strong>Apartment {selectedUnit.unit_number}</strong><span>{selectedUnit.bedrooms} bedrooms · {selectedUnit.bathrooms} bathrooms · {selectedUnit.floor_area_sqft} sq ft · Available {selectedUnit.available_from}</span></div>}<label>Listing title<input name="title" required placeholder="Bright apartment near..." /></label><label>Description<textarea name="description" rows={5} /></label><label>Visibility<select name="status" defaultValue="available"><option value="available">Publish now</option><option value="draft">Save as draft</option></select></label><button className="primary" disabled={busy || !propertyId || !unitId || loadingUnits || Boolean(unitsError)}>{busy ? 'Publishing…' : 'Create apartment listing'} <span>→</span></button></form></section><section className="panel"><div className="panel-heading"><div><span className="step">LISTING PIPELINE</span><h2>Your listings</h2></div><span className="panel-number">{listings.length}</span></div>{listings.length === 0 ? <Empty title="No listings yet" text="Publish an apartment when you are ready to welcome tenants." /> : <div className="record-list">{listings.map((listing) => <div className="record-row" key={listing.id}><div><strong>{listing.title || 'Untitled listing'}</strong><small>{listing.unit_id ? 'Apartment listing' : 'Building listing'} · {listing.description || 'No description added.'}</small></div><div className="button-row"><Status status={listing.status} />{["draft", "available"].includes(listing.status) && <ListingEditor listing={listing} onSaved={onSaved} />}</div></div>)}</div>}</section></section>;
+  return <section className="panel-layout"><section className="panel form-panel"><span className="step">PUBLISH A HOME</span><h2>Create a rental listing</h2><p>Choose the building and apartment this listing represents. Apartment listings use that unit’s rent and availability details.</p><form onSubmit={submit} className="auth-form"><label>Building<select name="property_id" value={propertyId} onChange={(event) => void selectProperty(event.target.value)} required><option value="" disabled>Select a building</option>{properties.map((property) => <option value={property.id} key={property.id}>{property.address_line}</option>)}</select></label>{propertyId && <label>Apartment<select name="unit_id" value={unitId} onChange={(event) => setUnitId(event.target.value)} required disabled={loadingUnits || Boolean(unitsError)}><option value="" disabled>{loadingUnits ? 'Loading apartments…' : unitsError ? 'Apartments unavailable' : 'Select an apartment'}</option>{units.map((unit) => <option value={unit.id} key={unit.id} disabled={unit.listing_blocked || unit.status !== "available"}>Apartment {unit.unit_number} · Floor {unit.floor_number} · ৳{unit.monthly_rent.toLocaleString()}{unit.listing_blocked || unit.status !== "available" ? " · Unavailable to list" : ""}</option>)}</select></label>}{unitsError && <p className="alert error" role="alert">{unitsError} <button type="button" className="text-button" onClick={() => void selectProperty(propertyId)}>Try again</button></p>}{propertyId && !loadingUnits && !unitsError && units.length === 0 && <p className="muted">Add an apartment in Apartments before creating a listing.</p>}{units.length > 0 && units.every(unit => unit.listing_blocked || unit.status !== "available") && <p className="muted">No apartments in this property are available to list.</p>}{selectedUnit && <div className="unit-summary"><strong>Apartment {selectedUnit.unit_number}</strong><span>{selectedUnit.bedrooms} bedrooms · {selectedUnit.bathrooms} bathrooms · {selectedUnit.floor_area_sqft} sq ft · Available {selectedUnit.available_from}</span></div>}<label>Listing title<input name="title" required placeholder="Bright apartment near..." /></label><label>Description<textarea name="description" rows={5} /></label><label>Visibility<select name="status" defaultValue="available"><option value="available">Publish now</option><option value="draft">Save as draft</option></select></label><button className="primary" disabled={busy || !propertyId || !selectedUnit || selectedUnit.listing_blocked || selectedUnit.status !== "available" || loadingUnits || Boolean(unitsError)}>{busy ? 'Publishing…' : 'Create apartment listing'} <span>→</span></button></form></section><section className="panel"><div className="panel-heading"><div><span className="step">LISTING PIPELINE</span><h2>Your listings</h2></div><span className="panel-number">{listings.length}</span></div>{listings.length === 0 ? <Empty title="No listings yet" text="Publish an apartment when you are ready to welcome tenants." /> : <div className="record-list">{listings.map((listing) => <div className="record-row" key={listing.id}><div><strong>{listing.title || 'Untitled listing'}</strong><small>{listing.unit_number ? `Apartment ${listing.unit_number}` : listing.unit_id ? 'Apartment listing' : 'Building listing'} · {listing.description || 'No description added.'}</small></div><div className="button-row"><Status status={listing.status} />{["draft", "available"].includes(listing.status) && <ListingEditor listing={listing} onSaved={onSaved} />}</div></div>)}</div>}</section></section>;
 }
 
 function ListingEditor({ listing, onSaved }: { listing: Listing; onSaved: () => void }) {
@@ -1393,12 +1719,39 @@ function LandlordViewingList({ viewings, busy, onUpdate }: { viewings: Viewing[]
   }}><label>Alternative time<input type="datetime-local" name="alternative" required /></label><button className="secondary small-button" disabled={busy}>Propose</button></form></>}</div></div>)}</div>}</section>;
 }
 
-function TenancyList({ tenancies, busy, onEnd }: { tenancies: Tenancy[]; busy: boolean; onEnd: (id: string) => void }) {
-  return <section className="panel"><div className="panel-heading"><div><span className="step">TENANT PROFILE · RESIDENCE HISTORY</span><h2>My tenancies</h2><p>Ended tenancies remain visible as historical records. A future move creates a new tenancy instead of overwriting this history.</p></div><span className="panel-number">{tenancies.length}</span></div>{tenancies.length === 0 ? <Empty title="No tenancy records yet" text="Confirmed rental agreements will appear here." /> : <div className="record-list">{tenancies.map((tenancy) => <div className="record-row" key={tenancy.id}><div><strong>{tenancy.property_address || 'Property'}</strong><small>{formatLabel(tenancy.status)} · {tenancy.start_date}{tenancy.end_date ? ` to ${tenancy.end_date}` : ' · Current'}</small><small>৳{tenancy.rent.toLocaleString()} / month · Rent due day {tenancy.rent_due_day}</small></div><div className="button-row"><Status status={tenancy.status} />{tenancy.status === 'active' && <button className="secondary small-button" disabled={busy} onClick={() => onEnd(tenancy.id)}>Moved out</button>}</div></div>)}</div>}</section>;
+function TenancyList({ tenancies, busy, onEnd, onReviewLandlord }: { tenancies: Tenancy[]; busy: boolean; onEnd: (id: string) => void; onReviewLandlord: (id: string) => void }) {
+  return <section className="panel"><div className="panel-heading"><div><span className="step">TENANT PROFILE · RESIDENCE HISTORY</span><h2>My tenancies</h2><p>Ended tenancies remain visible as historical records. A future move creates a new tenancy instead of overwriting this history.</p></div><span className="panel-number">{tenancies.length}</span></div>{tenancies.length === 0 ? <Empty title="No tenancy records yet" text="Confirmed rental agreements will appear here." /> : <div className="record-list">{tenancies.map((tenancy) => <div className="record-row" key={tenancy.id}><div><strong>{tenancy.property_address || 'Property'}{tenancy.unit_number ? ` · Apartment ${tenancy.unit_number}` : ''}</strong><small>{formatLabel(tenancy.status)} · {tenancy.start_date}{tenancy.end_date ? ` to ${tenancy.end_date}` : ' · Current'}</small><small>৳{tenancy.rent.toLocaleString()} / month · Rent due day {tenancy.rent_due_day}</small></div><div className="button-row"><Button className="secondary small-button" onClick={() => onReviewLandlord(tenancy.id)}>Review landlord</Button><Status status={tenancy.status} />{tenancy.status === 'active' && <button className="secondary small-button" disabled={busy} onClick={() => onEnd(tenancy.id)}>Moved out</button>}</div></div>)}</div>}</section>;
 }
 
-function TenantRentPanel({ overview, busy, onPay, onRefresh }: { overview: RentOverview | null; busy: boolean; onPay: (invoiceId: string, report: RentPaymentReport) => void; onRefresh: () => void }) {
-  const [reporting, setReporting] = useState(false);
+function ReceiptButton({ invoiceId }: { invoiceId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function download() {
+    setBusy(true);
+    setError('');
+    try {
+      const receipt = await request<{ filename: string; content_base64: string }>(`/rent/invoices/${invoiceId}/receipt`);
+      const bytes = Uint8Array.from(atob(receipt.content_base64), character => character.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = receipt.filename;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not download receipt.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <div>
+    <Button className="secondary small-button" onClick={download} disabled={busy}>{busy ? 'Preparing receipt…' : 'Download receipt'}</Button>
+    {error && <small role="alert">{error}</small>}
+  </div>;
+}
+
+function TenantRentPanel({ startReporting, overview, busy, onPay, onRefresh }: { startReporting: boolean; overview: RentOverview | null; busy: boolean; onPay: (invoiceId: string, report: RentPaymentReport) => void; onRefresh: () => void }) {
+  const [reporting, setReporting] = useState(startReporting);
   const [paymentMethod, setPaymentMethod] = useState('Mobile banking');
   const [paymentNote, setPaymentNote] = useState('');
   if (!overview || !overview.active) {
@@ -1411,24 +1764,24 @@ function TenantRentPanel({ overview, busy, onPay, onRefresh }: { overview: RentO
     <section className="panel">
       <div className="panel-heading"><div><span className="step">TENANT WORKSPACE · RENT</span><h2>Monthly rent</h2><p>Pay your rent for {periodLabel} and review your outstanding balance.</p></div><button className="secondary small-button" onClick={onRefresh}>Refresh</button></div>
       <div className="stats" style={{ marginTop: 0 }}>
-        <Stat icon="building" title={overview.property_address || 'Current home'} text={`${formatLabel(overview.property_type || 'Home')} · ৳${rent.toLocaleString()}/month`} />
+        <Stat icon="building" title={[overview.property_address || 'Current home', overview.unit_number && `Apartment ${overview.unit_number}`].filter(Boolean).join(' · ')} text={`${formatLabel(overview.property_type || 'Home')} · ৳${rent.toLocaleString()}/month`} />
         <Stat icon="calendar" title={`Day ${overview.rent_due_day ?? 1}`} text="Rent due day" />
         <Stat icon={overview.paid_current_period ? 'check' : 'card'} title={overview.paid_current_period ? 'Paid' : `৳${rent.toLocaleString()}`} text={overview.paid_current_period ? `${periodLabel} settled` : `${periodLabel} outstanding`} />
       </div>
       <div className="record-list" style={{ marginTop: 16 }}>
-        <div className="record-row">
+        <div className="record-row" id={invoice ? `record-${invoice.id}` : undefined} tabIndex={-1}>
           <div>
             <strong>{periodLabel} rent</strong>
             <small>{invoice ? `Invoice ${invoice.id.slice(0, 8)} · ${formatLabel(invoice.status)}` : 'No invoice raised yet'}</small>
             <small>Outstanding this month: ৳{Number(overview.outstanding || 0).toLocaleString()} · Total paid: ৳{Number(overview.total_paid || 0).toLocaleString()}</small>
           </div>
           <div className="record-actions">
-            {overview.paid_current_period ? <span className="status status-active">Paid</span> : invoice?.status === 'submitted' ? <span className="status status-pending">Awaiting landlord confirmation</span> : invoice?.status === 'pending' ? <button className="primary small-button" disabled={busy} onClick={() => setReporting(true)}>Report payment</button> : invoice ? <span className={`status status-${invoice.status}`}>{formatLabel(invoice.status)}</span> : <span className="status status-pending">Awaiting invoice</span>}
+            {overview.paid_current_period ? <><span className="status status-active">Paid</span>{invoice?.status === 'accepted' && <ReceiptButton invoiceId={invoice.id} />}</> : invoice?.status === 'submitted' ? <span className="status status-pending">Awaiting landlord confirmation</span> : invoice?.status === 'pending' ? <button className="primary small-button" disabled={busy} onClick={() => setReporting(true)}>Report payment</button> : invoice ? <span className={`status status-${invoice.status}`}>{formatLabel(invoice.status)}</span> : <span className="status status-pending">Awaiting invoice</span>}
           </div>
         </div>
         {invoice?.status === 'submitted' && <div className="alert success">Your payment report was sent to the landlord. It will only count as paid after they confirm receipt.</div>}
         {invoice?.status === 'pending' && reporting && <form className="form-grid" onSubmit={(event) => { event.preventDefault(); onPay(invoice.id, { payment_method: paymentMethod, note: paymentNote || undefined }); setPaymentNote(''); setReporting(false); }}>
-          <label>Payment method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option>Mobile banking</option><option>Bank transfer</option><option>Cash</option><option>Other</option></select></label>
+          <label>Payment method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option>Mobile banking</option><option>bKash</option><option>Nagad</option><option>Bank transfer</option><option>DBBL bank transfer</option><option>Prime Bank transfer</option><option>Cash</option><option>Other</option></select></label>
           <label>Transaction reference or note<input value={paymentNote} maxLength={500} onChange={(event) => setPaymentNote(event.target.value)} placeholder="Optional reference for your landlord" /></label>
           <div className="wide form-actions"><button className="primary" disabled={busy}>Submit payment report</button><button type="button" className="secondary" disabled={busy} onClick={() => setReporting(false)}>Cancel</button></div>
           <p className="wide">Reporting a payment does not mark the rent paid. Your landlord must confirm receipt.</p>
@@ -1438,7 +1791,7 @@ function TenantRentPanel({ overview, busy, onPay, onRefresh }: { overview: RentO
   );
 }
 
-function LandlordRentPanel({ rows, busy, onGenerate, onConfirm, onRefresh }: { rows: LandlordRentRow[]; busy: boolean; onGenerate: (tenancyId: string) => void; onConfirm: (invoiceId: string) => void; onRefresh: () => void }) {
+function LandlordRentPanel({ rows, busy, onGenerate, onConfirm, onMissed, onRefresh }: { rows: LandlordRentRow[]; busy: boolean; onGenerate: (tenancyId: string) => void; onConfirm: (invoiceId: string) => void; onMissed: (invoiceId: string) => void; onRefresh: () => void }) {
   const periodLabel = rows[0]?.period_month ? new Date(rows[0].period_month).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : 'This month';
   return (
     <section className="panel">
@@ -1446,14 +1799,19 @@ function LandlordRentPanel({ rows, busy, onGenerate, onConfirm, onRefresh }: { r
       {rows.length === 0 ? <Empty title="No active tenancies" text="When a tenant accepts your rental offer, their monthly rent will appear here." /> : (
         <div className="record-list">
           {rows.map((row) => (
-            <div className="record-row" key={row.tenancy_id}>
+            <div className="record-row" key={row.tenancy_id} id={row.invoice_id ? `record-${row.invoice_id}` : undefined} tabIndex={-1}>
               <div>
-                <strong>{row.property_address || 'Property'}</strong>
+                <strong>{row.property_address || 'Property'}{row.unit_number ? ` · Apartment ${row.unit_number}` : ''}</strong>
                 <small>{row.tenant_name || 'Tenant'} · ৳{Number(row.monthly_rent).toLocaleString()}/month · due day {row.rent_due_day}</small>
                 <small>{periodLabel}: {row.invoice_status === 'none' ? 'no invoice raised' : formatLabel(row.invoice_status)}</small>
                 {row.invoice_status === 'submitted' && <small>Reported paid {row.paid_on || 'date not provided'} by {row.payment_method || 'unspecified method'}{row.payment_note ? ` · Reference: ${row.payment_note}` : ''}</small>}
               </div>
               <div className="record-actions">
+                {row.missed_recorded && row.invoice_status === 'pending' && <span className="status status-declined">Missed rent recorded</span>}
+                {row.can_record_missed && row.invoice_id && <Button className="secondary small-button" disabled={busy} onClick={() => {
+                  if (window.confirm('Record this invoice as unpaid? The tenant will be notified and their reliability score may decrease.')) onMissed(row.invoice_id!);
+                }}>Record missed rent</Button>}
+                {row.invoice_status === 'accepted' && row.invoice_id && <ReceiptButton invoiceId={row.invoice_id} />}
                 {row.invoice_status === 'none' ? <button className="primary small-button" disabled={busy} onClick={() => onGenerate(row.tenancy_id)}>Raise rent</button> : row.invoice_status === 'submitted' && row.invoice_id ? <button className="primary small-button" disabled={busy} onClick={() => { if (row.invoice_id) onConfirm(row.invoice_id); }}>Confirm receipt</button> : <span className={`status status-${row.invoice_status === 'accepted' ? 'active' : 'pending'}`}>{row.invoice_status === 'accepted' ? 'Paid' : row.invoice_status === 'pending' ? 'Awaiting tenant payment' : formatLabel(row.invoice_status)}</span>}
               </div>
             </div>
@@ -1511,7 +1869,7 @@ function TenantRentalOfferList({ offers, listings, busy, onCreate, onRefresh, on
             <div className="record-row" key={offer.id}>
               <div>
                 <strong>{offer.listing_title || 'Listing'}</strong>
-                <small>{offer.property_address || 'Property'} · {offer.landlord_name || 'Landlord'}</small>
+                <small>{offer.property_address || 'Property'}{offer.unit_number ? ` / Apartment ${offer.unit_number}` : ''} · {offer.landlord_name || 'Landlord'}</small>
                 <small>Your offer: ৳{offer.proposed_rent.toLocaleString()}/month · Move in {new Date(offer.move_in_date).toLocaleDateString()}</small>
                 {offer.status === 'countered' && <small>Landlord counter: ৳{(offer.counter_rent || 0).toLocaleString()}/month{offer.landlord_response ? ` · "${offer.landlord_response}"` : ''}</small>}
               </div>
@@ -1553,7 +1911,7 @@ function LandlordRentalOfferList({ offers, busy, onRespond, onRefresh }: { offer
             <div className="record-row" key={offer.id}>
               <div>
                 <strong>{offer.tenant_name || 'Tenant'}</strong>
-                <small>{offer.listing_title || 'Listing'} · {offer.property_address || 'Property'}</small>
+                <small>{offer.listing_title || 'Listing'} · {offer.property_address || 'Property'}{offer.unit_number ? ` / Apartment ${offer.unit_number}` : ''}</small>
                 <small>Offer: ৳{offer.proposed_rent.toLocaleString()}/month · Move in {new Date(offer.move_in_date).toLocaleDateString()}{offer.message ? ` · "${offer.message}"` : ''}</small>
               </div>
               <div className="record-actions">
@@ -1596,6 +1954,10 @@ function LandlordRentalOfferList({ offers, busy, onRespond, onRefresh }: { offer
 }
 
 const ICONS: Record<string, ReactElement> = {
+  'chevron-down': <path d="m6 9 6 6 6-6" />,
+  moon: <path d="M20.9 13.35A9 9 0 0 1 10.65 3.1 9 9 0 1 0 20.9 13.35Z" />,
+  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></>,
+  download: <><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4" /></>,
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   home: <><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></>,
   inbox: <><path d="M5 5h14l2 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5z" /><path d="M3 13h5l2 3h4l2-3h5" /></>,
@@ -1632,9 +1994,18 @@ function Icon({ name }: { name: string }) {
 }
 
 function Brand() { return <div className="brand"><img className="brand-mark" src={logoImage} alt="CTRx logo" /><div><strong>CTRx</strong><span>Central Tenant Records</span></div></div>; }
-function Stat({ icon, title, text }: { icon: string; tone?: string; title: string; text: string }) { return <div className="stat-card"><span className="stat-icon"><Icon name={icon} /></span><div><strong>{title}</strong><span>{text}</span></div></div>; }
+function Stat({ icon, title, text }: { icon: string; tone?: string; title: string | ReactElement; text: string }) { return <div className="stat-card"><span className="stat-icon"><Icon name={icon} /></span><div><strong>{title}</strong><span>{text}</span></div></div>; }
 function Status({ status }: { status: string }) { return <span className={`status status-${status}`}>{formatStatus(status)}</span>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><div className="empty-icon"><Icon name="inbox" /></div><strong>{title}</strong><p>{text}</p></div>; }
 
-export default App;
+export default function AppEntry() {
+  const readSharedIdentity = () => new URLSearchParams(window.location.hash.slice(1)).get('rentalIdentity');
+  const [sharedIdentity, setSharedIdentity] = useState(readSharedIdentity);
+  useEffect(() => {
+    const onHashChange = () => setSharedIdentity(readSharedIdentity());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+  return sharedIdentity ? <VerifiedRentalIdentity key={sharedIdentity} apiBaseUrl={apiBaseUrl} token={sharedIdentity} /> : <App />;
+}
 

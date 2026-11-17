@@ -83,7 +83,7 @@ Use integration tests to verify permissions, edge cases and deployment behavior.
 | Properties and listings | FR-29–33, FR-73 | **Present.** Landlords can create, edit, publish and withdraw listings. Tenants can filter by area and monthly rent. Units can have separate live listings. |
 | Rental offers and tenancies | FR-34–37, FR-71 | **Present.** Offer acceptance creates a tenancy and move-out preserves history. Verify that concurrent acceptances cannot create overlapping tenancies for the same rentable space. |
 | Payments and ledger | FR-38–42 | **Partial.** Requests, payment reports, landlord confirmation and ledger history are available. Clarify FR-39 and FR-40 so they describe both parties’ decisions and specify landlord confirmation as the point that creates the ledger entry. Verify correction entries against FR-42 separately. |
-| Reliability scoring | FR-43–47 | **Partial.** Confirmed on-time and late payments and ledger corrections generate explainable score changes. Missed-payment events and persisted score snapshots remain pending. |
+| Reliability scoring | FR-43–47 | **Partial.** Confirmed on-time and late payments, ledger corrections, and landlord-recorded missed rent generate explainable score changes. Missed-rent events are stored with append-only score snapshots. |
 | Controlled sharing | FR-48–50 | **Present.** Tenants grant and revoke category-level access, and the landlord read endpoint checks the recipient and expiration. The UI selects landlords from the tenant's tenancy records. |
 | Viewing requests | FR-51–53, FR-72 | **Present.** Landlords can propose a different time and tenants can accept or decline. Lists show timed-out requests as expired, the scheduler persists expiry, and a new request can replace a closed one. |
 | Disputes | FR-54–56, FR-74 | **Present.** Submission, retrieval and review routes are available. Verify authorization and coverage for each reference type in FR-74. |
@@ -204,8 +204,7 @@ explicit `VITE_API_BASE_URL` overrides it.
 ## Current boundaries
 
 - Rental dispute workspaces cover tenancy and payment-request cases.
-- Reliability history is derived from confirmed ledger entries. Missed-payment
-  events and persisted scoring snapshots remain pending.
+- Reliability history combines confirmed ledger entries and documented missed rent. A confirmed payment clears the missed-rent penalty for the same tenancy and period.
 - Lease acknowledgements record each party's acceptance of a snapshot.
 - The redesigned RIC PDF registers a new document version under
   `ctrx-ric-v3` while retaining the certificate number, QR token and dates.

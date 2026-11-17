@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -63,9 +63,10 @@ def mark_read(notification_id: int, db: Session = Depends(get_db), user: User = 
 
 
 @router.get("/reliability")
-def reliability(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def reliability(response: Response, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.role != "tenant":
         raise HTTPException(403, "Tenant role required")
+    response.headers["Cache-Control"] = "no-store"
     return reliability_history(db, user.id)
 
 
@@ -218,13 +219,19 @@ def shared_certificates(db: Session = Depends(get_db), user: User = Depends(get_
 def reliability_events(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.role != "tenant":
         raise HTTPException(403, "Tenant role required")
-    return db.execute(text("""
-        SELECT e.id, e.event_type, e.points_delta, e.description, e.created_at,
-               e.ledger_entry_id, e.tenancy_id
-        FROM reliability_score_events e
-        JOIN reliability_scores s ON s.id = e.score_id
-        WHERE s.tenant_id = :user ORDER BY e.created_at DESC
-    """), {"user": user.id}).mappings().all()
+    history = reliability_history(db, user.id)
+    return [
+        {
+            "id": event["id"],
+            "event_type": event["event_type"],
+            "points_delta": event["points"],
+            "description": event["reason"],
+            "created_at": event["created_at"],
+            "ledger_entry_id": event["id"] if event["event_type"] in ("on_time", "late", "correction") else None,
+            "tenancy_id": event["tenancy_id"],
+        }
+        for event in history["events"]
+    ]
 
 
 @router.get("/certificates/{certificate_id}/delivery")

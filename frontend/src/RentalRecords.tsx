@@ -3,11 +3,12 @@ import { FormEvent, useEffect, useState } from 'react';
 
 type Api = <T>(path: string, options?: RequestInit) => Promise<T>;
 type Download = { filename: string; content_base64: string };
-type Tenancy = { id: string; address_line: string; status: string };
+type Tenancy = { unit_number?: string | null; id: string; start_date: string; address_line: string; status: string };
+type StartDateProposal = { id: number; start_date: string; previous_start_date: string };
 type Lease = { terms: Record<string, string | number>; tenant_acknowledged_at: string | null; landlord_acknowledged_at: string | null };
 type Ledger = { id: string; period_month: string; entry_type: string; amount: number; reason?: string; payment_request_id?: string };
 type Invoice = { id: string; period_month: string; status: string; amount: number };
-type Statement = { address: string; ledger: Ledger[]; invoices: Invoice[]; posted_total: number; outstanding_total: number };
+type Statement = { unit_number?: string | null; address: string; ledger: Ledger[]; invoices: Invoice[]; posted_total: number; outstanding_total: number };
 type Case = { id: string; reason: string; status: string; created_at: string; entity_type: string; resolution_note?: string };
 type CaseDetail = Case & { can_review: boolean; care_evidence: CaseCareEvidence[]; timeline: { id: number; kind: string; message: string; filename?: string; role: string; created_at: string }[] };
 type CaseSource = { entity_type: 'tenancy' | 'payment_request'; entity_id: string };
@@ -36,10 +37,12 @@ function attachmentData(file: File): Promise<string> {
   });
 }
 
-export function RentalRecords({ view, setView, role, request, caseId }: { view: string; setView: (view: string) => void; role: string; request: Api; caseId?: string }) {
+export function RentalRecords({ view, setView, role, request, caseId, initialTenancyId }: { view: string; setView: (view: string) => void; role: string; request: Api; caseId?: string; initialTenancyId?: string }) {
   const party = role === 'tenant' || role === 'landlord';
   const [tenancies, setTenancies] = useState<Tenancy[]>([]);
-  const [tenancyId, setTenancyId] = useState('');
+  const [tenancyId, setTenancyId] = useState(initialTenancyId ?? '');
+  const [editingStart, setEditingStart] = useState(false);
+  const [startProposal, setStartProposal] = useState<StartDateProposal | null>(null);
   const [agreement, setAgreement] = useState<Lease | null>();
   const [statement, setStatement] = useState<{ data: Statement; query: string }>();
   const [cases, setCases] = useState<Case[]>([]);
@@ -63,6 +66,7 @@ export function RentalRecords({ view, setView, role, request, caseId }: { view: 
 
   const casesPath = '/records/cases';
   const leasePath = `/records/leases/${tenancyId}`;
+  const startPath = `/tenancies/${tenancyId}/start-date`;
   const statementPath = `/records/statements/${tenancyId}`;
   const post = (body?: unknown): RequestInit => ({ method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 
@@ -76,13 +80,18 @@ export function RentalRecords({ view, setView, role, request, caseId }: { view: 
     else if (party) void run(async () => {
       const items = await request<Tenancy[]>('/records/tenancies');
       setTenancies(items);
-      setTenancyId(current => items.some(item => item.id === current) ? current : items[0]?.id || '');
+      setTenancyId(current => items.some(item => item.id === initialTenancyId) ? initialTenancyId! : items.some(item => item.id === current) ? current : items[0]?.id || '');
     });
-  }, [view, party, caseId]);
+  }, [view, party, caseId, initialTenancyId]);
   useEffect(() => {
+    setEditingStart(false);
+    setStartProposal(null);
     setAgreement(undefined);
     setStatement(undefined);
-    if (view === 'leases' && tenancyId) void run(async () => setAgreement(await request<Lease | null>(leasePath)));
+    if (view === 'leases' && tenancyId) void run(async () => {
+      setAgreement(await request<Lease | null>(leasePath));
+      setStartProposal(await request<StartDateProposal | null>(`${startPath}/proposal`));
+    });
   }, [tenancyId, view]);
 
   function startCase(entity_type: CaseSource['entity_type'], entity_id: string) {
@@ -120,6 +129,21 @@ export function RentalRecords({ view, setView, role, request, caseId }: { view: 
       setNotice('Case updated.');
     });
   }
+  const leaseAcknowledged = Boolean(agreement?.tenant_acknowledged_at || agreement?.landlord_acknowledged_at);
+
+  async function respondToStartDate(decision: 'approve' | 'decline') {
+    if (!startProposal) return;
+    await run(async () => {
+      const updated = await request<{ start_date: string }>(`${startPath}/proposal`, {
+        method: 'POST', body: JSON.stringify({ proposal_id: startProposal.id, decision }),
+      });
+      setTenancies(previous => previous.map(item => item.id === tenancyId ? { ...item, start_date: updated.start_date } : item));
+      setStartProposal(null);
+      setAgreement(await request<Lease | null>(leasePath));
+      setNotice(decision === 'approve' ? 'Tenancy start date corrected.' : 'Start-date proposal declined.');
+    });
+  }
+
   const myAcknowledgement = role === 'tenant' ? agreement?.tenant_acknowledged_at : agreement?.landlord_acknowledged_at;
   const caseIsOpen = activeCase && ['open', 'under_review'].includes(activeCase.status);
   return <>
@@ -133,7 +157,7 @@ export function RentalRecords({ view, setView, role, request, caseId }: { view: 
       }}>
         <label>Tenancy<select value={tenancyId} onChange={event => setTenancyId(event.target.value)} disabled={busy || !tenancies.length}>
           {!tenancies.length && <option value="">No tenancy records</option>}
-          {tenancies.map(row => <option value={row.id} key={row.id}>{row.address_line} · {row.status}</option>)}
+          {tenancies.map(row => <option value={row.id} key={row.id}>{row.address_line}{row.unit_number ? ` · Apartment ${row.unit_number}` : ''} · {row.status}</option>)}
         </select></label>
         {view === 'statements' && <div className="search-filters">
           <label>From month<input type="month" required value={startMonth} onChange={e => setStartMonth(e.target.value)} /></label>
@@ -142,6 +166,37 @@ export function RentalRecords({ view, setView, role, request, caseId }: { view: 
         </div>}
       </form>
       {busy && <p role="status">Loading…</p>}
+    </section>}
+    {view === 'leases' && tenancyId && tenancies.some(item => item.id === tenancyId) && <section className="panel">
+      <div className="panel-heading"><div><h2>Tenancy details</h2><p>{tenancies.find(item => item.id === tenancyId)?.address_line}{tenancies.find(item => item.id === tenancyId)?.unit_number && ` · Apartment ${tenancies.find(item => item.id === tenancyId)?.unit_number}`}</p><p>Start date {tenancies.find(item => item.id === tenancyId)?.start_date}</p></div>
+        {role === 'landlord' && !editingStart &&
+          <button className="secondary" type="button" disabled={busy} onClick={() => setEditingStart(true)}>{leaseAcknowledged ? 'Propose start-date correction' : 'Correct start date'}</button>}
+      </div>
+      {startProposal && <div className="alert" role="status">
+        <div><strong>Proposed start date {startProposal.start_date}</strong><p>The current date stays in force until the tenant approves the correction.</p>
+          {role === 'tenant' && <div className="button-row">
+            <button type="button" className="primary" disabled={busy} onClick={() => void respondToStartDate('approve')}>Approve correction</button>
+            <button type="button" className="secondary" disabled={busy} onClick={() => void respondToStartDate('decline')}>Decline</button>
+          </div>}
+        </div>
+      </div>}
+      {editingStart && <form className="form-grid" onSubmit={event => {
+        event.preventDefault();
+        const start = new FormData(event.currentTarget).get('start_date');
+        void run(async () => {
+          const updated = await request<{ start_date: string; proposed_start_date?: string }>(startPath, {
+            method: 'PATCH', body: JSON.stringify({ start_date: start }),
+          });
+          setTenancies(previous => previous.map(item => item.id === tenancyId ? { ...item, start_date: updated.start_date } : item));
+          setEditingStart(false);
+          setAgreement(await request<Lease | null>(leasePath));
+          setStartProposal(await request<StartDateProposal | null>(`${startPath}/proposal`));
+          setNotice(updated.proposed_start_date ? 'Correction sent to the tenant for approval.' : 'Tenancy start date updated.');
+        });
+      }}>
+        <label>Correct start date<input name="start_date" type="date" required disabled={busy} defaultValue={tenancies.find(item => item.id === tenancyId)?.start_date} /></label>
+        <div className="wide button-row"><button className="primary" disabled={busy}>{leaseAcknowledged ? 'Send to tenant' : 'Save start date'}</button><button type="button" className="secondary" disabled={busy} onClick={() => setEditingStart(false)}>Cancel</button></div>
+      </form>}
     </section>}
     {view === 'leases' && tenancyId && agreement === null && <section className="panel"><h2>Prepare a draft</h2>
       <p>Capture the tenancy terms for both parties to review and acknowledge.</p>
@@ -161,7 +216,7 @@ export function RentalRecords({ view, setView, role, request, caseId }: { view: 
       </div>
     </section>}
     {view === 'statements' && statement && <section className="panel">
-      <div className="panel-heading"><div><h2>{statement.data.address}</h2><p>Posted {money(statement.data.posted_total)} · Outstanding {money(statement.data.outstanding_total)}</p></div>
+      <div className="panel-heading"><div><h2>{statement.data.address}{statement.data.unit_number ? ` · Apartment ${statement.data.unit_number}` : ''}</h2><p>Posted {money(statement.data.posted_total)} · Outstanding {money(statement.data.outstanding_total)}</p></div>
         <button className="secondary" disabled={busy} onClick={() => void run(async () => saveFile(await request<Download>(`${statementPath}/pdf?${statement.query}`)))}>Download PDF</button></div>
       <h3>Ledger entries</h3>
       {!statement.data.ledger.length && <p>No ledger entries for this period.</p>}
@@ -184,7 +239,7 @@ export function RentalRecords({ view, setView, role, request, caseId }: { view: 
           <button className="secondary small-button" disabled={busy} onClick={() => { setSource(undefined); void run(() => loadCase(item.id)); }}>{label(item.status)} · View case</button></article>)}
       </section>
       {party && source && <section className="panel"><h2>Open a dispute</h2><form className="auth-form" onSubmit={submitCase}>
-        {source.entity_id ? <p>Related record: {label(source.entity_type)}</p> : <label>Tenancy<select required name="tenancy"><option value="">Select a tenancy</option>{tenancies.map(item => <option key={item.id} value={item.id}>{item.address_line}</option>)}</select></label>}
+        {source.entity_id ? <p>Related record: {label(source.entity_type)}</p> : <label>Tenancy<select required name="tenancy"><option value="">Select a tenancy</option>{tenancies.map(item => <option key={item.id} value={item.id}>{item.address_line}{item.unit_number ? ` · Apartment ${item.unit_number}` : ''}</option>)}</select></label>}
         <label>What happened?<textarea name="reason" rows={4} required maxLength={4000} /></label>
         <div className="button-row"><button className="primary" disabled={busy}>Submit dispute</button><button type="button" className="secondary" onClick={() => setSource(undefined)}>Cancel</button></div>
       </form></section>}
