@@ -40,6 +40,14 @@ class ProfileUpdate(BaseModel):
     contact_phone: Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+?[0-9]{7,15}$")] | None = None
 
 
+Theme = Literal["jade", "harbor", "graphite", "comfort", "teal", "indigo", "amber", "rose", "forest", "ocean"]
+
+
+def normalize_theme(value: str) -> str:
+    return {"teal": "jade", "forest": "jade", "rose": "jade", "indigo": "harbor",
+            "ocean": "harbor", "amber": "comfort"}.get(value, value)
+
+
 class ProfileResponse(BaseModel):
     marital_status: MaritalStatus | None = None
     living_arrangement: LivingArrangement | None = None
@@ -47,12 +55,12 @@ class ProfileResponse(BaseModel):
     contact_phone: str | None
     photo_url: str | None
     appearance: Literal["light", "dark"] = "light"
-    theme: Literal["teal", "indigo", "amber", "rose", "forest", "ocean"] = "teal"
+    theme: Theme = "jade"
 
 
 class AppearanceUpdate(BaseModel):
     appearance: Literal["light", "dark"]
-    theme: Literal["teal", "indigo", "amber", "rose", "forest", "ocean"]
+    theme: Theme
 
 
 def _profile_response(db: Session, user: User) -> ProfileResponse:
@@ -68,7 +76,7 @@ def _profile_response(db: Session, user: User) -> ProfileResponse:
         contact_phone=Fernet(settings.ENCRYPTION_KEY.encode()).decrypt(phone).decode() if phone else None,
         photo_url="data:image/jpeg;base64," + b64encode(photo).decode("ascii") if photo else None,
         appearance=profile.appearance if profile else "light",
-        theme=profile.theme if profile else "teal",
+        theme=normalize_theme(profile.theme) if profile else "jade",
     )
 
 

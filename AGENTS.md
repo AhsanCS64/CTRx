@@ -268,3 +268,4 @@ Start-date corrections are in Lease agreements → Tenancy details. Feedback lin
 For acknowledged leases, landlords propose a start-date correction and the tenant approves or declines it. The tenancy date changes only on approval, and the previous acknowledged terms remain recorded in the audit history.
 Accepted apartment offers persist the unit on the tenancy. The apartment migration links older tenancies when a matching accepted offer identifies one unit. Lease details, rental documents, rent, feedback, tenancy care, and Excel exports show the unit where recorded.
 Reliability caps the effective payment deadline at the end of the billed month. A payment in the following month is late even when an invoice or tenancy started after the usual due day.
+Profile themes are Jade, Harbor, Graphite, and Comfort (Warm Paper in light mode and Midnight Forest in dark mode). Legacy saved palette names map to the curated lineup without a database migration.

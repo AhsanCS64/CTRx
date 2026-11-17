@@ -627,7 +627,7 @@ function Workspace(props: {
     return () => { active = false; };
   }, [user.id]);
   const appearance = accountProfile?.appearance || 'light';
-  const theme = accountProfile?.theme || 'teal';
+  const theme = normalizeTheme(accountProfile?.theme || 'jade');
   useEffect(() => {
     document.documentElement.dataset.appearance = appearance;
     document.documentElement.dataset.theme = theme;
@@ -1009,7 +1009,11 @@ function GovernmentDashboard({ applications, certificates, unread, setWorkspace,
 
 type InboxItem = { id: number; destination: string; record_id: string; message: string; created_at: string; read_at: string | null };
 type Inbox = { items: InboxItem[]; unread: number };
-type AccountProfile = { marital_status?: string | null; living_arrangement?: string | null; display_name: string | null; contact_phone: string | null; photo_url: string | null; appearance: 'light' | 'dark'; theme: 'teal' | 'indigo' | 'amber' | 'rose' | 'forest' | 'ocean' };
+function normalizeTheme(theme: string) {
+  return ({ teal: 'jade', forest: 'jade', rose: 'jade', indigo: 'harbor', ocean: 'harbor', amber: 'comfort' } as Record<string, string>)[theme] || theme;
+}
+
+type AccountProfile = { marital_status?: string | null; living_arrangement?: string | null; display_name: string | null; contact_phone: string | null; photo_url: string | null; appearance: 'light' | 'dark'; theme: string };
 type Reliability = { score: number | null; confirmed_payment_periods?: number; events: { id: string; period_month: string; reason: string; points: number }[] };
 type Share = { id: number; other_email: string; categories: string[]; expires_at: string; revoked_at: string | null };
 type SharedHistory = { tenancies?: { start_date: string; end_date: string | null; status: string }[]; reliability?: Reliability };
@@ -1034,6 +1038,8 @@ function ProfileSettings({ user, onSaved }: { user: User; onSaved: (profile: Acc
   const { data, setData, error, busy, reload, run } = useWorkspaceResource<AccountProfile>('/profile');
   const [message, setMessage] = useState('');
   const [photo, setPhoto] = useState<File>();
+  const [appearanceDraft, setAppearanceDraft] = useState<'light' | 'dark'>('light');
+  useEffect(() => { if (data) setAppearanceDraft(data.appearance); }, [data?.appearance]);
   function update(options: RequestInit, success: string, path = '/profile') {
     setMessage('');
     void run(async () => {
@@ -1082,8 +1088,16 @@ function ProfileSettings({ user, onSaved }: { user: User; onSaved: (profile: Acc
             const fields = new FormData(event.currentTarget);
             update({ method: 'PUT', body: JSON.stringify({ appearance: fields.get('appearance'), theme: fields.get('theme') }) }, 'Appearance saved.', '/profile/appearance');
           }}>
-            <label>Mode<select name="appearance" defaultValue={data.appearance}><option value="light">Light</option><option value="dark">Dark</option></select></label>
-            <fieldset className="theme-picker"><legend>Color palette</legend>{[['teal', 'Jade', '#286b59'], ['indigo', 'Iris', '#625197'], ['amber', 'Sandstone', '#8b6427'], ['rose', 'Rosewood', '#934c64'], ['forest', 'Olive', '#596d39'], ['ocean', 'Harbor', '#326b85']].map(([value, label, color]) => <label key={value}><input type="radio" name="theme" value={value} defaultChecked={data.theme === value} /><span className="theme-swatch" style={{ background: color }} /><span>{label}</span></label>)}</fieldset>
+            <label>Mode<select name="appearance" value={appearanceDraft} onChange={event => setAppearanceDraft(event.target.value as 'light' | 'dark')}><option value="light">Light</option><option value="dark">Dark</option></select></label>
+            <fieldset className="theme-picker"><legend>Theme</legend>{[
+              ['jade', 'Jade', '#185c46', 'Forest emerald · CTRx default'],
+              ['harbor', 'Harbor', '#274e73', 'Navy and slate blue'],
+              ['graphite', 'Graphite', '#41454c', 'Neutral charcoal'],
+              ['comfort', appearanceDraft === 'dark' ? 'Midnight Forest' : 'Warm Paper', '#756342', 'Warm Paper in light · Midnight Forest in dark'],
+            ].map(([value, label, color, description]) => <label key={value}>
+              <input type="radio" name="theme" value={value} defaultChecked={normalizeTheme(data.theme) === value} />
+              <span className="theme-swatch" style={{ background: color }} /><span><strong>{label}</strong><small>{description}</small></span>
+            </label>)}</fieldset>
             <button className="primary" disabled={busy}>Save appearance</button>
           </form>
         </section>
