@@ -35,7 +35,7 @@ def create_app() -> FastAPI:
         logger.error("Missing required secret configuration", exc_info=exc)
         raise RuntimeError(str(exc)) from exc
 
-    app = FastAPI(title="CTRx Backend", version="0.1.0")
+    app = FastAPI(title="CENTRAL TENANCY RECORDS API", version="0.1.0")
 
     # ---------------------------------------------------------------------
     # CORS – credentials enabled because the refresh‑cookie is httpOnly.

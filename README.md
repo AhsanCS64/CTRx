@@ -1,4 +1,4 @@
-# CTRx — Central Tenant Records
+# CTRx — CENTRAL TENANCY RECORDS
 
 ## Prerequisites
 - Python 3.12+

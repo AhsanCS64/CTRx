@@ -127,7 +127,7 @@ def _fallback_pdf(data: Dict, qr_png: bytes) -> bytes:
         Spacer(1, 3 * mm),
         Paragraph("Government of the People's Republic of Bangladesh", subtitle),
         Paragraph("RENTAL IDENTITY CERTIFICATE", title),
-        Paragraph("Central Tenant Records", subtitle),
+        Paragraph("CENTRAL TENANCY RECORDS", subtitle),
         Paragraph("CERTIFICATE OF VERIFIED RENTAL IDENTITY", ParagraphStyle("ribbon", parent=body, alignment=TA_CENTER, textColor=colors.white, backColor=green, fontName="Helvetica-Bold", fontSize=8, leading=14, spaceBefore=2, spaceAfter=8)),
         Paragraph(f"This certificate records the verified rental identity of <b>{value('full_name')}</b> and the household listed below.", body),
         Paragraph("CERTIFICATE HOLDER", section),

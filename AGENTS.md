@@ -1,6 +1,6 @@
 # CTRx — Project implementation map
 
-This file documents how the CTRx (Central Tenant Records) project is implemented
+This file documents how the CTRx (CENTRAL TENANCY RECORDS) project is implemented
 and how its features work in code. It is intended for future agentic coding
 sessions — read it before making changes so you do not duplicate or break
 existing behavior.

@@ -516,7 +516,7 @@ function Landing({ onLogin, onRegister }: { onLogin: (role: Role) => void; onReg
     </div></header>
     <main id="main-content">
       <section className="cl-hero">
-        <div className="cl-intro"><span className="cl-label">Central Tenant Records</span>
+        <div className="cl-intro"><span className="cl-label">CENTRAL TENANCY RECORDS</span>
           <h1>Renting as a bachelor? <em>Let your record speak.</em></h1>
           <p>CTRx helps bachelors in Bangladesh show landlords who they are and how they rent, with a verified identity and a rental history they choose to share.</p>
           <div className="cl-actions"><Button className="primary" onClick={onRegister}>Create account</Button><a href="#platform-features">Explore the platform <span aria-hidden="true">↓</span></a></div>
@@ -527,7 +527,7 @@ function Landing({ onLogin, onRegister }: { onLogin: (role: Role) => void; onReg
         <div><h3>For tenants</h3><p>Build a rental profile over time and share selected tenancy and payment records with a prospective landlord.</p></div>
         <div><h3>For landlords</h3><p>Review the tenant’s reliability score alongside their shared records. Consider the evidence and the applicant’s circumstances together.</p></div>
       </section>
-      <section className="cl-identity" id="rental-identity"><div className="cl-identity-intro"><span className="cl-label">Rental identity</span><h2>A verified record for your household.</h2><p>Follow your application from submission to approval, then download your issued certificate from your account.</p></div><div className="cl-certificate"><div className="cl-document-brand"><img src={logoImage} alt="" /><span>Central Tenant Records</span></div>
+      <section className="cl-identity" id="rental-identity"><div className="cl-identity-intro"><span className="cl-label">Rental identity</span><h2>A verified record for your household.</h2><p>Follow your application from submission to approval, then download your issued certificate from your account.</p></div><div className="cl-certificate"><div className="cl-document-brand"><img src={logoImage} alt="" /><span>CENTRAL TENANCY RECORDS</span></div>
           <Icon name="award" />
           <h2>Rental Identity Certificate</h2>
           <ol>{[['Apply', 'Submit your address and household details.'], ['Get verified', 'Track local verification and central approval.'], ['Download', 'Save your certificate once it is issued.']].map(([title, detail]) => <li key={title}><strong>{title}</strong><span>{detail}</span></li>)}</ol>
@@ -816,7 +816,7 @@ function Workspace(props: {
       {workspace === 'rent' && user.role === 'landlord' && <LandlordRentPanel rows={props.landlordRent} busy={props.busy} onGenerate={props.onGenerateRent} onConfirm={props.onConfirmRentPayment} onMissed={props.onRecordMissedRent} onRefresh={props.onRefreshRent} />}
       {workspace === 'official' && <OfficialForm areas={props.areas} busy={props.busy} onSubmit={props.onCreateOfficial} />}
       {workspace === 'admins' && <AdminForm busy={props.busy} onSubmit={props.onCreateAdmin} />}
-      <footer>CTRx · Central Tenant Records <span>Audit-ready · Role-based access</span></footer></main></div>;
+      <footer>CTRx · CENTRAL TENANCY RECORDS <span>Audit-ready · Role-based access</span></footer></main></div>;
 }
 
 function CurrentHome({ overview, onManage, onReport, onReview }: { overview: RentOverview; onManage: () => void; onReport: () => void; onReview: () => void }) {
@@ -1472,7 +1472,7 @@ function AuthScreen({ screen, loginRole, registerRole, resetToken, busy, error, 
     <button className="auth-home-button" onClick={onBack}><span aria-hidden="true">←</span> Back to home</button>
     <div className="auth-layout">
       <aside className="auth-introduction">
-        <span className="eyebrow">CENTRAL TENANT RECORDS</span>
+        <span className="eyebrow">CENTRAL TENANCY RECORDS</span>
         {adminView ? <>
           <h2>CTRx administration</h2>
           <p>Sign in with your assigned administrator account to manage platform access.</p>
@@ -2007,7 +2007,7 @@ function Icon({ name }: { name: string }) {
   return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{path}</svg>;
 }
 
-function Brand() { return <div className="brand"><img className="brand-mark" src={logoImage} alt="CTRx logo" /><div><strong>CTRx</strong><span>Central Tenant Records</span></div></div>; }
+function Brand() { return <div className="brand"><img className="brand-mark" src={logoImage} alt="CTRx logo" /><div><strong>CTRx</strong><span>CENTRAL TENANCY RECORDS</span></div></div>; }
 function Stat({ icon, title, text }: { icon: string; tone?: string; title: string | ReactElement; text: string }) { return <div className="stat-card"><span className="stat-icon"><Icon name={icon} /></span><div><strong>{title}</strong><span>{text}</span></div></div>; }
 function Status({ status }: { status: string }) { return <span className={`status status-${status}`}>{formatStatus(status)}</span>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><div className="empty-icon"><Icon name="inbox" /></div><strong>{title}</strong><p>{text}</p></div>; }

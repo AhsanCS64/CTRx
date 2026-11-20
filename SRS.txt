@@ -1,5 +1,5 @@
 Software Requirements Specification (SRS)
-Central Tenant Records (CTRx)
+CENTRAL TENANCY RECORDS (CTRx)
 Version: 1.2
 Date: 17 November 2026
 Status: Proposed
@@ -13,7 +13,7 @@ Renamed to CTRx. Aligned with database schema v0.3 and the chosen technology sta
 Added secure email password recovery with expiring, one-use reset links and session invalidation (FR-77).
 1. Introduction
 1.1 Purpose
-The Central Tenant Records (CTRx) system is a centralized digital platform designed to maintain verified tenant identity records, facilitate rental-related activities, and improve transparency and accountability between tenants and landlords in Bangladesh.
+The CENTRAL TENANCY RECORDS (CTRx) system is a centralized digital platform designed to maintain verified tenant identity records, facilitate rental-related activities, and improve transparency and accountability between tenants and landlords in Bangladesh.
 The system introduces a household-based Rental Identity Certificate (RIC) and provides a structured platform for property listings, tenancy records, rental payment histories, and tenant reliability information.
 1.2 Scope
 The system will provide the following major services:

@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "ctrx"
 version = "0.1.0"
-description = "Central Tenant Records (CTR) backend"
+description = "CENTRAL TENANCY RECORDS (CTRx) backend"
 authors = ["H. M. Ahsan Habib <ahsan@example.com>"]
 license = "MIT"
 
