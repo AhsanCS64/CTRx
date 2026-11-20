@@ -15,7 +15,7 @@
 
 *Building trust, transparency, and accountability in the rental ecosystem through verifiable tenancy records and digital identity management.*
 
-[**💻 Source Code**](https://github.com/AhsanCS64/CTRx) · [**👤 Developer Portfolio**](https://ahsanhabibkushal.vercel.app/)
+[**💻 Source Code**](https://github.com/AhsanCS64/CTRx) · [**Live Application**](https://ctrx-chi.vercel.app/) · [**👤 Developer Portfolio**](https://ahsanhabibkushal.vercel.app/)
 
 </div>
 
